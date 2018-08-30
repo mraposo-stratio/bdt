@@ -1129,6 +1129,7 @@ public class CommonG {
 
                 response = request.execute();
                 break;
+
             case "DELETE":
                 if (data == "") {
                     request = this.getClient().prepareDelete(restURL + endPoint);
