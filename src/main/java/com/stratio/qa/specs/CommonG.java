@@ -1130,12 +1130,17 @@ public class CommonG {
                 response = request.execute();
                 break;
             case "DELETE":
-                request = this.getClient().prepareDelete(restURL + endPoint);
-
-                if (this.getResponse() != null) {
-                    request = request.setCookies(this.getResponse().getCookies());
+                if (data == "") {
+                    request = this.getClient().prepareDelete(restURL + endPoint);
+                } else {
+                    request = this.getClient().prepareDelete(restURL + endPoint).setBody(data);
+                    if ("json".equals(type)) {
+                        request = request.setHeader("Content-Type", "application/json");
+                    } else if ("string".equals(type)) {
+                        this.getLogger().debug("Sending request as: {}", type);
+                        request = request.setHeader("Content-Type", "application/x-www-form-urlencoded");
+                    }
                 }
-
                 if (this.getSeleniumCookies().size() > 0) {
                     for (org.openqa.selenium.Cookie cookie : this.getSeleniumCookies()) {
                         request.addCookie(new Cookie(cookie.getName(), cookie.getValue(),
@@ -1157,7 +1162,11 @@ public class CommonG {
                     request = request.setRealm(realm);
                 }
 
-                response = request.execute();
+                if (data == "") {
+                    response = request.execute();
+                } else {
+                    response = this.getClient().executeRequest(request.build());
+                }
                 break;
             case "POST":
                 if (data == null) {
