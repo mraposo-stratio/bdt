@@ -1024,6 +1024,9 @@ public class ThenGSpec extends BaseGSpec {
         String query;
 
         switch (objetType) {
+            case "Database":
+                query = "SELECT datname FROM pg_database WHERE datname = " + "\'" + objectName + "\'" + ";";
+                break;
 
             case "Table":
                 query = "SELECT tablename FROM pg_tables WHERE tablename = " + "\'" + objectName + "\'" + ";";
@@ -1096,6 +1099,9 @@ public class ThenGSpec extends BaseGSpec {
         String query;
 
         switch (objetType) {
+            case "Database":
+                query = "SELECT datname FROM pg_database WHERE datname = " + "\'" + objectName + "\'" + ";";
+                break;
 
             case "Table":
                 query = "SELECT tablename FROM pg_tables WHERE tablename = " + "\'" + objectName + "\'" + ";";
