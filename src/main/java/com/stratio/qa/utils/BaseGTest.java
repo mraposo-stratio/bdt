@@ -27,6 +27,8 @@ public abstract class BaseGTest {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass().getCanonicalName());
 
+    protected String browser = "";
+
     /**
      * Method executed before a suite.
      *
@@ -63,6 +65,7 @@ public abstract class BaseGTest {
      */
     @BeforeMethod(alwaysRun = true)
     public void beforeGMethod(Method method) {
+        ThreadProperty.set("browser", this.browser);
     }
 
     /**

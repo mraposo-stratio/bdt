@@ -86,7 +86,7 @@ public class LoopIncludeTagAspect {
                 lines.set(s, lines.get(s).replaceAll("Scenario", "Scenario Outline"));
                 s++;
                 while (s < lines.size()) {
-                    if ((lines.get(s).toUpperCase().contains("SCENARIO")) || lines.get(s).matches(".*@[^\\{].*")) {
+                    if ((lines.get(s).toUpperCase().contains("SCENARIO")) || lines.get(s).matches("^\\s[^\\n|\\r]@.*")) {
                         break;
                     }
                     s++;
@@ -112,7 +112,7 @@ public class LoopIncludeTagAspect {
                 lines.set(s, lines.get(s).replaceAll("Scenario", "Scenario Outline"));
                 s++;
                 while (s < lines.size()) {
-                    if ((lines.get(s).toUpperCase().contains("SCENARIO")) || lines.get(s).matches(".*@[^\\{].*")) {
+                    if ((lines.get(s).toUpperCase().contains("SCENARIO")) || lines.get(s).matches("^\\s[^\\n|\\r]@.*")) {
                         break;
                     }
                     s++;
@@ -131,7 +131,7 @@ public class LoopIncludeTagAspect {
                     lines.remove(s--);
                 } else {
                     lines.remove(s);
-                    while (!lines.get(s).toUpperCase().contains("SCENARIO") && !lines.get(s).matches(".*@[^\\{].*") && !lines.get(s).toUpperCase().contains("/BACKGROUND")) {
+                    while (!lines.get(s).toUpperCase().contains("SCENARIO") && !lines.get(s).matches("^\\s[^\\n|\\r]@.*") && !lines.get(s).toUpperCase().contains("/BACKGROUND")) {
                         lines.remove(s);
                     }
                     if (lines.get(s).toUpperCase().contains("@/BACKGROUND")) {

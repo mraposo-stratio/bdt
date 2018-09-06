@@ -17,8 +17,10 @@ package com.stratio.qa.ATests;
 
 
 import com.stratio.qa.cucumber.testng.CucumberRunner;
+import com.stratio.qa.data.BrowsersDataProvider;
 import com.stratio.qa.utils.BaseGTest;
 import cucumber.api.CucumberOptions;
+import org.testng.annotations.Factory;
 import org.testng.annotations.Test;
 
 @CucumberOptions(format = "json:target/cucumber.json", features = {
@@ -26,6 +28,11 @@ import org.testng.annotations.Test;
         "src/test/resources/features/multiloopTag.feature"
 })
 public class LoopTagAspectIT extends BaseGTest {
+
+    @Factory(enabled = false, dataProviderClass = BrowsersDataProvider.class, dataProvider = "availableUniqueBrowsers")
+    public LoopTagAspectIT(String browser) {
+        this.browser = browser;
+    }
 
     @Test
     public void loopTagTest() throws Exception {

@@ -46,3 +46,10 @@ Feature: Feature used in testing loop tag aspect
     Given I save '@{JSON.testSOATtag<VAR_NAME.id>B.json}' in variable 'VAR'
     Then I run '[ "!{VAR}" = "{"a":{}}" ]' locally
 
+  @web
+  @loop(AGENT_LIST,VAR_NAME)
+  Scenario: Locate web element with xpath
+    Given My app is running in 'www.google.com:80'
+    When I browse to '/'
+    And I wait '5' seconds
+    When '1' elements exists with 'xpath://div[@id="SIvCob"]/a[<VAR_NAME>]'

@@ -12,7 +12,7 @@ Feature: Feature used in testing multiloop tag aspect
     Then the command output contains '2'
 
   Scenario: verify file 1 content.
-    Given I run "cat testMultiloopOutput1.txt | sed -E ':a;N;$!ba;s/\r{0,1}\n/\\n/g'" locally
+    Given I run 'cat testMultiloopOutput1.txt | sed -E ':a;N;$!ba;s/\r{0,1}\n/\\n/g'' locally
     Then the command output contains '1\n2'
 
   Scenario: wipe test file 2.
@@ -27,7 +27,7 @@ Feature: Feature used in testing multiloop tag aspect
     Then the command output contains '4'
 
   Scenario: verify file 2 content.
-    Given I run "cat testMultiloopOutput2.txt | sed -E ':a;N;$!ba;s/\r{0,1}\n/\\n/g'" locally
+    Given I run 'cat testMultiloopOutput2.txt | sed -E ':a;N;$!ba;s/\r{0,1}\n/\\n/g'' locally
     Then the command output contains '1,1\n2,1\n1,2\n2,2'
 
   Scenario: wipe test file 3.
@@ -42,7 +42,7 @@ Feature: Feature used in testing multiloop tag aspect
     Then the command output contains '8'
 
   Scenario: verify file 3 content.
-    Given I run "cat testMultiloopOutput3.txt | sed -E ':a;N;$!ba;s/\r{0,1}\n/\\n/g'" locally
+    Given I run 'cat testMultiloopOutput3.txt | sed -E ':a;N;$!ba;s/\r{0,1}\n/\\n/g'' locally
     Then the command output contains '1,1,1\n2,1,1\n1,2,1\n2,2,1\n1,1,2\n2,1,2\n1,2,2\n2,2,2'
 
 #  @multiloop(AGENT1_LIST=>AGENT1_NAME,AGENT2_LIST=>AGENT2_NAME)
@@ -72,4 +72,13 @@ Feature: Feature used in testing multiloop tag aspect
       | $.a | REPLACE | @{JSON.schemas/empty.json}     | object   |
     Given I save '@{JSON.testSOATtag<VAR_NAME.id>B.json}' in variable 'VAR'
     Then I run '[ "!{VAR}" = "{"a":{}}" ]' locally
+
+  @web
+  @multiloop(AGENT_LIST=>VAR1_NAME,AGENT_LIST=>VAR2_NAME)
+  Scenario: Locate web element with xpath
+    Given My app is running in 'www.google.com:80'
+    When I browse to '/'
+    And I wait '5' seconds
+    When '1' elements exists with 'xpath://div[@id="SIvCob"]/a[<VAR1_NAME>]'
+    When '1' elements exists with 'xpath://div[@id="SIvCob"]/a[<VAR2_NAME>]'
 
