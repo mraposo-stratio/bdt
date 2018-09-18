@@ -2040,9 +2040,6 @@ public class CommonG {
             if (user != null) {
                 props.setProperty("user", user);
             }
-            if (password != null) {
-                props.setProperty("password", user);
-            }
             if (ca != null) {
                 props.setProperty("sslrootcert", ca);
             }
@@ -2052,7 +2049,7 @@ public class CommonG {
             if (key != null) {
                 props.setProperty("sslkey", key);
             }
-
+            props.setProperty("password", "null");
             props.setProperty("ssl", "true");
             props.setProperty("sslmode", "verify-full");
 
