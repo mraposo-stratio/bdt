@@ -12,4 +12,4 @@ target/*
 *.log
 _ajdump/
 testOutput.txt
-
+testMultiloopOutput*.txt
