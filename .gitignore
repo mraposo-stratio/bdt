@@ -12,9 +12,4 @@ target/*
 *.log
 _ajdump/
 testOutput.txt
-testMultiloopOutput*.txt
-*.crt
-*.pem
-*.key
-*.keytab
 
