@@ -13,3 +13,7 @@ target/*
 _ajdump/
 testOutput.txt
 testMultiloopOutput*.txt
+*.crt
+*.key
+*.keytab
+*.pem
