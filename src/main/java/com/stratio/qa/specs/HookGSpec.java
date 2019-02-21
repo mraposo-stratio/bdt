@@ -58,9 +58,11 @@ public class HookGSpec extends BaseGSpec {
 
     public static final int SCRIPT_TIMEOUT = 30;
 
-    private static final String TAG = "@important";
+    private static final String importantTAG = "@important";
 
-    private static final String customTAG = "@notimportant";
+    private static final String notImportantTAG = "@notimportant";
+
+    private static final String alwaysTAG = "@always";
 
     private static boolean prevScenarioFailed = false;
 
@@ -90,14 +92,14 @@ public class HookGSpec extends BaseGSpec {
     public void watch_this_tagged_scenario(Scenario scenario) throws Exception {
         loggerEnabled = true;
         if (quietasdefault.equals("false")) {
-            if (!isTaggedAsNotImportant(scenario)) {
+            if (!isTagIncludedInScenario(scenario, notImportantTAG)) {
                 boolean isFailed = scenario.isFailed();
                 if (isFailed) {
                     prevScenarioFailed = isFailed;
                 }
             }
         } else {
-            if (isTagged(scenario)) {
+            if (isTagIncludedInScenario(scenario, importantTAG)) {
                 boolean isFailed = scenario.isFailed();
                 if (isFailed) {
                     prevScenarioFailed = isFailed;
@@ -112,7 +114,12 @@ public class HookGSpec extends BaseGSpec {
     @Before
     public void quit_if_tagged_scenario_failed(Scenario scenario) throws Throwable {
         if (prevScenarioFailed) {
-            throw new SuppressableException("An important scenario has failed! TESTS EXECUTION ABORTED!", true);
+            if (!isTagIncludedInScenario(scenario, alwaysTAG)) {
+                commonspec.getLogger().warn("An important scenario has failed! TESTS EXECUTION ABORTED!");
+                throw new SuppressableException("An important scenario has failed! TESTS EXECUTION ABORTED!", true);
+            } else {
+                loggerEnabled = true;
+            }
         }
     }
 
@@ -267,12 +274,7 @@ public class HookGSpec extends BaseGSpec {
         }
     }
 
-    private boolean isTagged(Scenario scenario) {
-        Collection<String> tags = scenario.getSourceTagNames();
-        return tags.contains(TAG);
-    }
-
-    private boolean isTaggedAsNotImportant(Scenario scenario) {
+    private boolean isTagIncludedInScenario(Scenario scenario, String customTAG) {
         Collection<String> tags = scenario.getSourceTagNames();
         return tags.contains(customTAG);
     }

@@ -87,12 +87,9 @@ public class CukesGHooks extends BaseGSpec implements EventListener, StrictAware
             currentFeatureFile = event.testCase.getUri();
         }
         TestCase tc = event.testCase;
-        if (HookGSpec.loggerEnabled) {
-            logger.info("Feature/Scenario: {}/{} ", TestSourcesModelUtil.INSTANCE.getTestSourcesModel().getFeatureName(currentFeatureFile), tc.getName());
-            ThreadProperty.set("feature", TestSourcesModelUtil.INSTANCE.getTestSourcesModel().getFeatureName(currentFeatureFile));
-            ThreadProperty.set("scenario", tc.getName());
-        }
-
+        logger.info("Feature/Scenario: {}/{} ", TestSourcesModelUtil.INSTANCE.getTestSourcesModel().getFeatureName(currentFeatureFile), tc.getName());
+        ThreadProperty.set("feature", TestSourcesModelUtil.INSTANCE.getTestSourcesModel().getFeatureName(currentFeatureFile));
+        ThreadProperty.set("scenario", tc.getName());
     }
 
     private void handleTestStepStarted(TestStepStarted event) {

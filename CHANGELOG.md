@@ -4,7 +4,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 
 ## 0.9.0 (upcoming)
 
-* Pending changelog
+* [QATM-2067] @always tag allows execute a test even if an important scenario failed previously
 
 ## 0.8.0 (February 07, 2019)
 
