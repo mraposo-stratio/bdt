@@ -144,54 +144,54 @@ public class RunOnTagAspect {
         }
 
         boolean result = true;
-            // Primer elemento
-            if (params[0][0].contains("=")) {
-                result = firstElementOperator(params[0][0],"=");
-            } else if (params[0][0].contains(">")) {
-                result = firstElementOperator(params[0][0],">");
-            } else if (params[0][0].contains("<")) {
-                result = firstElementOperator(params[0][0],"<");
+        // Primer elemento
+        if (params[0][0].contains("=")) {
+            result = firstElementOperator(params[0][0], "=");
+        } else if (params[0][0].contains(">")) {
+            result = firstElementOperator(params[0][0], ">");
+        } else if (params[0][0].contains("<")) {
+            result = firstElementOperator(params[0][0], "<");
+        } else {
+            if (System.getProperty(params[0][0], "").isEmpty()) {
+                result = false;
+            }
+        }
+
+        // Elementos intermedios
+        for (int j = 1; j < params[0].length - 1; j++) {
+            if (params[0][j].contains("=")) {
+                result = elementOperator(params[0][j], "=", params[1], j - 1, result);
+            } else if (params[0][j].contains(">")) {
+                result = elementOperator(params[0][j], ">", params[1], j - 1, result);
+            } else if (params[0][j].contains("<")) {
+                result = elementOperator(params[0][j], "<", params[1], j - 1, result);
             } else {
-                if (System.getProperty(params[0][0], "").isEmpty()) {
-                    result = false;
-                }
-            }
-
-            // Elementos intermedios
-            for (int j = 1; j < params[0].length - 1; j++) {
-                if (params[0][j].contains("=")) {
-                    result = elementOperator(params[0][j], "=", params[1], j-1, result);
-                } else if (params[0][j].contains(">")) {
-                    result = elementOperator(params[0][j], ">", params[1], j-1, result);
-                } else if (params[0][j].contains("<")) {
-                    result = elementOperator(params[0][j], "<", params[1], j-1, result);
+                if (System.getProperty(params[0][j], "").isEmpty()) {
+                    result = updateResultOperation(params[1], j - 1, result, false);
                 } else {
-                    if (System.getProperty(params[0][j], "").isEmpty()) {
-                        result = updateResultOperation(params[1], j-1, result, false);
-                    } else {
-                        result = updateResultOperation(params[1], j-1, result, true);
-                    }
-
+                    result = updateResultOperation(params[1], j - 1, result, true);
                 }
-            }
 
-            // Último elemento
-            if (params[0].length > 1) {
-                if (params[0][params[0].length - 1].contains("=")) {
-                    result = elementOperator(params[0][params[0].length - 1], "=", params[1], params[1].length - 1, result);
-                } else if (params[0][params[0].length - 1].contains(">")) {
-                    result = elementOperator(params[0][params[0].length - 1], ">", params[1], params[1].length - 1, result);
-                } else if (params[0][params[0].length - 1].contains("<")) {
-                    result = elementOperator(params[0][params[0].length - 1], "<", params[1], params[1].length - 1, result);
+            }
+        }
+
+        // Último elemento
+        if (params[0].length > 1) {
+            if (params[0][params[0].length - 1].contains("=")) {
+                result = elementOperator(params[0][params[0].length - 1], "=", params[1], params[1].length - 1, result);
+            } else if (params[0][params[0].length - 1].contains(">")) {
+                result = elementOperator(params[0][params[0].length - 1], ">", params[1], params[1].length - 1, result);
+            } else if (params[0][params[0].length - 1].contains("<")) {
+                result = elementOperator(params[0][params[0].length - 1], "<", params[1], params[1].length - 1, result);
+            } else {
+                if (System.getProperty(params[0][params[0].length - 1], "").isEmpty()) {
+                    result = updateResultOperation(params[1], params[1].length - 1, result, false);
                 } else {
-                    if (System.getProperty(params[0][params[0].length - 1], "").isEmpty()) {
-                        result = updateResultOperation(params[1], params[1].length - 1, result, false);
-                    } else {
-                        result = updateResultOperation(params[1], params[1].length - 1, result, true);
-                    }
+                    result = updateResultOperation(params[1], params[1].length - 1, result, true);
                 }
             }
-            return result;
+        }
+        return result;
     }
 
     private boolean firstElementOperator(String element, String operador) throws Exception {
@@ -201,7 +201,7 @@ public class RunOnTagAspect {
         if (System.getProperty(param, "").isEmpty()) {
             result = false;
         } else if (value.contains(".") && System.getProperty(param).contains(".")) {
-            if(!checkVersion(operador.charAt(0), param, value)) {
+            if (!checkVersion(operador.charAt(0), param, value)) {
                 result = false;
             }
         } else if (operador.equals("=") && !value.equals(System.getProperty(param))) {
@@ -249,7 +249,7 @@ public class RunOnTagAspect {
     }
 
     private boolean updateResultOperation (String[] param, int pos, boolean result, boolean valor) throws Exception {
-        if (param.length == 0){
+        if (param.length == 0) {
             return result && valor;
         } else if ("&&".equals(param[pos])) {
             return result && valor;
@@ -305,7 +305,7 @@ public class RunOnTagAspect {
                 String[] paramversion = System.getProperty(param).split("-");
                 String[] valueversion = value.split("-");
                 if (operador == '>' && paramversion.length < valueversion.length) {
-                        result = false;
+                    result = false;
                 } else if (operador == '<' && paramversion.length > valueversion.length) {
                     result = false;
                 } else {
