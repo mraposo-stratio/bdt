@@ -62,6 +62,20 @@ public class RunOnEnvTagAspectTest {
     }
 
     @Test
+    public void testCheckLengthVersion() throws Exception {
+        System.setProperty("VERSION","1.0.0");
+        assertThatExceptionOfType(Exception.class).isThrownBy(() -> runontag.checkParams(runontag.getParams("@runOnEnv(VERSION>1.0)")))
+                .withMessage("Error while parsing params. The versions must have the same numbers of elements");
+    }
+
+    @Test
+    public void testCheckLengthVersion_2() throws Exception {
+        System.setProperty("VERSION","1.0.0-1.0.0");
+        assertThatExceptionOfType(Exception.class).isThrownBy(() -> runontag.checkParams(runontag.getParams("@runOnEnv(VERSION>1.0.0-1.0)")))
+                .withMessage("Error while parsing params. The versions must have the same numbers of elements");
+    }
+
+    @Test
     public void testTagIterationRun() throws Exception {
         System.setProperty("HELLO","OK");
         List<PickleTag> tagList = new ArrayList<>();
@@ -153,6 +167,38 @@ public class RunOnEnvTagAspectTest {
         List<PickleTag> tagList = new ArrayList<>();
         tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION=1.0.0-1.0.0-1.0.0)"));
         assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testTagIterationRunValueVersion_2() throws Exception {
+        System.setProperty("VERSION","1.0.0");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION=1.0.0-1.0.0-1.0.0)"));
+        assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testTagIterationRunValueVersion_3() throws Exception {
+        System.setProperty("VERSION","1.0.0-1.0-1.0.0");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION=1.0.0-1.0.0-1.0.0)"));
+        assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testTagIterationRunValueVersion_4() throws Exception {
+        System.setProperty("VERSION","1.0.0-1.0.1-1.0.0");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION=1.0.0-1.0.0-1.0.0)"));
+        assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testTagIterationRunValueVersion_5() throws Exception {
+        System.setProperty("VERSION","1.0");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION=1.0.0)"));
+        assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
     }
 
     @Test
@@ -543,6 +589,16 @@ public class RunOnEnvTagAspectTest {
     }
 
     @Test
+    public void testTagIterationRunValueArrayMixNegative16() throws Exception {
+        System.setProperty("HELLO","SECOND");
+        System.setProperty("BYE","1.2.0");
+        System.clearProperty("SEEYOU");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(HELLO=SECOND,SEEYOU,HELLO>SECOND,BYE<1.0.0)"));
+        assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
     public void testTagIterationSkipValue() throws Exception {
         System.setProperty("HELLO","OK");
         List<PickleTag> tagList = new ArrayList<>();
@@ -712,6 +768,24 @@ public class RunOnEnvTagAspectTest {
     }
 
     @Test
+    public void testTagIterationSkipValueGreatherThanArrayNegative4() throws Exception {
+        System.setProperty("HELLO","FIRST");
+        System.setProperty("BYE","1.0.0-1.0.0");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@skipOnEnv(HELLO>SECOND,BYE>1.0.0-1.1.0)"));
+        assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testTagIterationSkipValueGreatherThanArrayNegative5() throws Exception {
+        System.setProperty("HELLO","FIRST");
+        System.setProperty("BYE","1.0.0-1.0.0");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@skipOnEnv(HELLO>SECOND,BYE>1.0.0-1.0.0)"));
+        assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
     public void testTagIterationSkipValueSmallerThanArrayNegative1() throws Exception {
         System.setProperty("HELLO","FIRST");
         System.setProperty("BYE","1.0.0-1.1.0");
@@ -744,6 +818,15 @@ public class RunOnEnvTagAspectTest {
         System.setProperty("BYE","1.0.0");
         List<PickleTag> tagList = new ArrayList<>();
         tagList.add(new PickleTag(new PickleLocation(1,0),"@skipOnEnv(HELLO=SECOND,BYE,HELLO>FIRST,BYE<1.0.0-1.1.0)"));
+        assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testTagIterationSkypValueArrayMix_2() throws Exception {
+        System.setProperty("HELLO","FIRST");
+        System.setProperty("BYE","1.0.0-1.1.0");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@skipOnEnv(HELLO=FIRST,BYE,BYE>1.0.0,HELLO<SECOND)"));
         assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
     }
 
