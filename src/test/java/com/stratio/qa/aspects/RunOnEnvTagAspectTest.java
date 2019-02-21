@@ -430,6 +430,15 @@ public class RunOnEnvTagAspectTest {
     }
 
     @Test
+    public void testTagIterationRunValueSmallerThanArrayNegative4() throws Exception {
+        System.setProperty("HELLO","SECOND");
+        System.setProperty("BYE","1.0.0-1.1.0");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(HELLO<FIRST,BYE<1.0.0-1.0.0)"));
+        assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
     public void testTagIterationRunValueArrayMix() throws Exception {
         System.setProperty("HELLO","SECOND");
         System.setProperty("BYE","1.0.0");
