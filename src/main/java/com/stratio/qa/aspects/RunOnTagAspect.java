@@ -144,74 +144,13 @@ public class RunOnTagAspect {
         }
 
         boolean result = true;
-        // Si no hay operadores, hacemos validación normal (por defecto AND)
-        if (params[1].length == 0) {
-            for (int i = 0; i < params[0].length; i++) {
-                if (params[0][i].contains("=")) {
-                    String param = params[0][i].split("=")[0];
-                    String value = params[0][i].split("=")[1];
-
-                    if (System.getProperty(param, "").isEmpty()) {
-                        return false;
-                    }
-
-                    if (!System.getProperty(param).equals(value)) {
-                        return false;
-                    }
-                } else if (params[0][i].contains(">")) {
-                    String param = params[0][i].split(">")[0];
-                    String value = params[0][i].split(">")[1];
-
-                    if (System.getProperty(param, "").isEmpty()) {
-                        return false;
-                    }
-
-                    if (!(System.getProperty(param).compareTo(value) > 0)) {
-                        return false;
-                    }
-                } else if (params[0][i].contains("<")) {
-                    String param = params[0][i].split("<")[0];
-                    String value = params[0][i].split("<")[1];
-
-                    if (System.getProperty(param, "").isEmpty()) {
-                        return false;
-                    }
-
-                    if (!(System.getProperty(param).compareTo(value) < 0)) {
-                        return false;
-                    }
-                } else {
-                    if (System.getProperty(params[0][i], "").isEmpty()) {
-                        return false;
-                    }
-                }
-            }
-            return true;
-        } else {
-            // Tenemos expresión condicional
             // Primer elemento
             if (params[0][0].contains("=")) {
-                String param = params[0][0].split("=")[0];
-                String value = params[0][0].split("=")[1];
-                if (System.getProperty(param, "").isEmpty()) {
-                    result = false;
-                }
-
-                if (!value.equals(System.getProperty(param))) {
-                    result = false;
-                }
+                result = firstElementOperator(params[0][0],"=");
             } else if (params[0][0].contains(">")) {
-                String param = params[0][0].split(">")[0];
-                String value = params[0][0].split(">")[1];
-                if (System.getProperty(param, "").isEmpty() || !(value.compareTo(System.getProperty(param)) < 0)) {
-                    result =  false;
-                }
+                result = firstElementOperator(params[0][0],">");
             } else if (params[0][0].contains("<")) {
-                String param = params[0][0].split("<")[0];
-                String value = params[0][0].split("<")[1];
-                if (System.getProperty(param, "").isEmpty() || !(value.compareTo(System.getProperty(param)) > 0)) {
-                    result = false;
-                }
+                result = firstElementOperator(params[0][0],"<");
             } else {
                 if (System.getProperty(params[0][0], "").isEmpty()) {
                     result = false;
@@ -221,84 +160,16 @@ public class RunOnTagAspect {
             // Elementos intermedios
             for (int j = 1; j < params[0].length - 1; j++) {
                 if (params[0][j].contains("=")) {
-                    String param = params[0][j].split("=")[0];
-                    String value = params[0][j].split("=")[1];
-                    if (System.getProperty(param, "").isEmpty()) {
-                        if ("&&".equals(params[1][j - 1])) {
-                            result = result && false;
-                        } else {
-                            result = result || false;
-                        }
-                    } else if (!System.getProperty(param).equals(value)) {
-                        if ("&&".equals(params[1][j - 1])) {
-                            result = result && false;
-                        } else {
-                            result = result || false;
-                        }
-                    } else {
-                        if ("&&".equals(params[1][j - 1])) {
-                            result = result && true;
-                        } else {
-                            result = result || true;
-                        }
-                    }
+                    result = elementOperator(params[0][j], "=", params[1], j-1, result);
                 } else if (params[0][j].contains(">")) {
-                    String param = params[0][j].split(">")[0];
-                    String value = params[0][j].split(">")[1];
-                    if (System.getProperty(param, "").isEmpty()) {
-                        if ("&&".equals(params[1][j - 1])) {
-                            result = result && false;
-                        } else {
-                            result = result || false;
-                        }
-                    } else if (!(System.getProperty(param).compareTo(value) > 0)) {
-                        if ("&&".equals(params[1][j - 1])) {
-                            result = result && false;
-                        } else {
-                            result = result || false;
-                        }
-                    } else {
-                        if ("&&".equals(params[1][j - 1])) {
-                            result = result && true;
-                        } else {
-                            result = result || true;
-                        }
-                    }
+                    result = elementOperator(params[0][j], ">", params[1], j-1, result);
                 } else if (params[0][j].contains("<")) {
-                    String param = params[0][j].split("<")[0];
-                    String value = params[0][j].split("<")[1];
-                    if (System.getProperty(param, "").isEmpty()) {
-                        if ("&&".equals(params[1][j - 1])) {
-                            result = result && false;
-                        } else {
-                            result = result || false;
-                        }
-                    } else if (!(System.getProperty(param).compareTo(value) < 0)) {
-                        if ("&&".equals(params[1][j - 1])) {
-                            result = result && false;
-                        } else {
-                            result = result || false;
-                        }
-                    } else {
-                        if ("&&".equals(params[1][j - 1])) {
-                            result = result && true;
-                        } else {
-                            result = result || true;
-                        }
-                    }
+                    result = elementOperator(params[0][j], "<", params[1], j-1, result);
                 } else {
                     if (System.getProperty(params[0][j], "").isEmpty()) {
-                        if ("&&".equals(params[1][j - 1])) {
-                            result = result && false;
-                        } else {
-                            result = result || false;
-                        }
+                        result = updateResultOperation(params[1], j-1, result, false);
                     } else {
-                        if ("&&".equals(params[1][j - 1])) {
-                            result = result && true;
-                        } else {
-                            result = result || true;
-                        }
+                        result = updateResultOperation(params[1], j-1, result, true);
                     }
 
                 }
@@ -307,88 +178,202 @@ public class RunOnTagAspect {
             // Último elemento
             if (params[0].length > 1) {
                 if (params[0][params[0].length - 1].contains("=")) {
-                    String param = params[0][params[0].length - 1].split("=")[0];
-                    String value = params[0][params[0].length - 1].split("=")[1];
-                    if (System.getProperty(param, "").isEmpty()) {
-                        if ("&&".equals(params[1][params[1].length - 1])) {
-                            result = result && false;
-                        } else {
-                            result = result || false;
-                        }
-                    } else if (!value.equals(System.getProperty(param))) {
-                        if ("&&".equals(params[1][params[1].length - 1])) {
-                            result = result && false;
-                        } else {
-                            result = result || false;
-                        }
-                    } else {
-                        if ("&&".equals(params[1][params[1].length - 1])) {
-                            result = result && true;
-                        } else {
-                            result = result || true;
-                        }
-                    }
+                    result = elementOperator(params[0][params[0].length - 1], "=", params[1], params[1].length - 1, result);
                 } else if (params[0][params[0].length - 1].contains(">")) {
-                    String param = params[0][params[0].length - 1].split(">")[0];
-                    String value = params[0][params[0].length - 1].split(">")[1];
-                    if (System.getProperty(param, "").isEmpty()) {
-                        if ("&&".equals(params[1][params[1].length - 1])) {
-                            result = result && false;
-                        } else {
-                            result = result || false;
-                        }
-                    } else if (!(value.compareTo(System.getProperty(param)) < 0)) {
-                        if ("&&".equals(params[1][params[1].length - 1])) {
-                            result = result && false;
-                        } else {
-                            result = result || false;
-                        }
-                    } else {
-                        if ("&&".equals(params[1][params[1].length - 1])) {
-                            result = result && true;
-                        } else {
-                            result = result || true;
-                        }
-                    }
+                    result = elementOperator(params[0][params[0].length - 1], ">", params[1], params[1].length - 1, result);
                 } else if (params[0][params[0].length - 1].contains("<")) {
-                    String param = params[0][params[0].length - 1].split("<")[0];
-                    String value = params[0][params[0].length - 1].split("<")[1];
-                    if (System.getProperty(param, "").isEmpty()) {
-                        if ("&&".equals(params[1][params[1].length - 1])) {
-                            result = result && false;
-                        } else {
-                            result = result || false;
-                        }
-                    } else if (!(value.compareTo(System.getProperty(param)) > 0)) {
-                        if ("&&".equals(params[1][params[1].length - 1])) {
-                            result = result && false;
-                        } else {
-                            result = result || false;
-                        }
-                    } else {
-                        if ("&&".equals(params[1][params[1].length - 1])) {
-                            result = result && true;
-                        } else {
-                            result = result || true;
-                        }
-                    }
+                    result = elementOperator(params[0][params[0].length - 1], "<", params[1], params[1].length - 1, result);
                 } else {
                     if (System.getProperty(params[0][params[0].length - 1], "").isEmpty()) {
-                        if ("&&".equals(params[1][params[1].length - 1])) {
-                            result = result && false;
-                        } else {
-                            result = result || false;
-                        }
+                        result = updateResultOperation(params[1], params[1].length - 1, result, false);
                     } else {
-                        if ("&&".equals(params[1][params[1].length - 1])) {
-                            result = result && true;
-                        } else {
-                            result = result || true;
-                        }
+                        result = updateResultOperation(params[1], params[1].length - 1, result, true);
                     }
                 }
             }
             return result;
+    }
+
+    private boolean firstElementOperator(String element, String operador) throws Exception {
+        boolean result = true;
+        String param = element.split(operador)[0];
+        String value = element.split(operador)[1];
+        if (System.getProperty(param, "").isEmpty()) {
+            result = false;
+        } else if (value.contains(".") && System.getProperty(param).contains(".")) {
+            if(!checkVersion(operador.charAt(0), param, value)) {
+                result = false;
+            }
+        } else if (operador.equals("=") && !value.equals(System.getProperty(param))) {
+            result = false;
+        } else if (operador.equals(">") && !(System.getProperty(param).compareTo(value) > 0)) {
+            result = false;
+        } else if (operador.equals("<") && !(System.getProperty(param).compareTo(value) < 0)) {
+            result = false;
+        }
+        return result;
+    }
+
+    private boolean elementOperator(String element, String operador, String[] operations, int posop, boolean result) throws Exception {
+        boolean res = result;
+        String param = element.split(operador)[0];
+        String value = element.split(operador)[1];
+        if (System.getProperty(param, "").isEmpty()) {
+            res =  updateResultOperation(operations, posop, result, false);
+        } else if (value.contains(".") && System.getProperty(param).contains(".")) {
+            if (!checkVersion(operador.charAt(0), param, value)) {
+                res =  updateResultOperation(operations, posop, result, false);
+            } else {
+                res =  updateResultOperation(operations, posop, result, true);
+            }
+        } else if (operador.equals("=")) {
+            if (!value.equals(System.getProperty(param))) {
+                res =  updateResultOperation(operations, posop, result, false);
+            } else {
+                res =  updateResultOperation(operations, posop, result, true);
+            }
+        } else if (operador.equals(">")) {
+            if (!(System.getProperty(param).compareTo(value) > 0)) {
+                res =  updateResultOperation(operations, posop, result, false);
+            } else {
+                res =  updateResultOperation(operations, posop, result, true);
+            }
+        } else if (operador.equals("<")) {
+            if (!(System.getProperty(param).compareTo(value) < 0)) {
+                res =  updateResultOperation(operations, posop, result, false);
+            } else {
+                res =  updateResultOperation(operations, posop, result, true);
+            }
+        }
+        return res;
+    }
+
+    private boolean updateResultOperation (String[] param, int pos, boolean result, boolean valor) throws Exception {
+        if (param.length == 0){
+            return result && valor;
+        } else if ("&&".equals(param[pos])) {
+            return result && valor;
+        } else {
+            return result || valor;
         }
     }
+
+    private boolean checkVersion(char operador, String param, String value) throws Exception {
+        boolean result = true;
+        if (operador == '=') {
+            if (value.contains("-") || System.getProperty(param).contains("-")) {
+                String[] paramversion = System.getProperty(param).split("-");
+                String[] valueversion = value.split("-");
+                if (paramversion.length != valueversion.length) {
+                    result = false;
+                } else {
+                    int j = 0;
+                    while (j < paramversion.length && result) {
+                        String[] parver = paramversion[j].split("\\.");
+                        String[] valver = valueversion[j].split("\\.");
+                        if (parver.length != valver.length) {
+                            result = false;
+                        } else {
+                            int z = 0;
+                            while (z < parver.length && result) {
+                                if (Integer.parseInt(parver[z]) != Integer.parseInt(valver[z])) {
+                                    result = false;
+                                }
+                                z++;
+                            }
+                        }
+                        j++;
+                    }
+                }
+            } else {
+                String[] parver = System.getProperty(param).split("\\.");
+                String[] valver = value.split("\\.");
+                if (parver.length != valver.length) {
+                    result = false;
+                } else {
+                    int z = 0;
+                    while (z < parver.length && result) {
+                        if (Integer.parseInt(parver[z]) != Integer.parseInt(valver[z])) {
+                            result = false;
+                        }
+                        z++;
+                    }
+                }
+            }
+        } else {
+            if ((value.contains("-") || System.getProperty(param).contains("-"))) {
+                String[] paramversion = System.getProperty(param).split("-");
+                String[] valueversion = value.split("-");
+                if (operador == '>' && paramversion.length < valueversion.length) {
+                        result = false;
+                } else if (operador == '<' && paramversion.length > valueversion.length) {
+                    result = false;
+                } else {
+                    int size = paramversion.length;
+                    if (valueversion.length < size) {
+                        size = valueversion.length;
+                    }
+                    int countversion = 0;
+                    int j = 0;
+                    while (j < size && result) {
+                        String[] parver = paramversion[j].split("\\.");
+                        String[] valver = valueversion[j].split("\\.");
+                        if (parver.length != valver.length) {
+                            throw new Exception("Error while parsing params. The versions must have the same numbers of elements");
+                        } else {
+                            int count = 0;
+                            int z = 0;
+                            while (z < parver.length && result) {
+                                if (operador == '>' && Integer.parseInt(parver[z]) < Integer.parseInt(valver[z])) {
+                                    result = false;
+                                } else if (operador == '<' && Integer.parseInt(parver[z]) > Integer.parseInt(valver[z])) {
+                                    result = false;
+                                } else if (Integer.parseInt(parver[z]) == Integer.parseInt(valver[z])) {
+                                    count = count + 1;
+                                } else {
+                                    z = parver.length;
+                                    j = size;
+                                }
+                                z++;
+                            }
+                            if (count == parver.length) {
+                                countversion = countversion + 1;
+                            }
+                        }
+                        j++;
+                    }
+                    if (countversion == size && paramversion.length == valueversion.length) {
+                        result = false;
+                    }
+                }
+            } else {
+                String[] parver = System.getProperty(param).split("\\.");
+                String[] valver = value.split("\\.");
+                if (parver.length != valver.length) {
+                    throw new Exception("Error while parsing params. The versions must have the same numbers of elements");
+                }
+                int count = 0;
+                int z = 0;
+                while (z < parver.length && result) {
+                    if (operador == '>' && Integer.parseInt(parver[z]) < Integer.parseInt(valver[z])) {
+                        result = false;
+                    } else if (operador == '<' && Integer.parseInt(parver[z]) > Integer.parseInt(valver[z])) {
+                        result = false;
+                    } else if (Integer.parseInt(parver[z]) == Integer.parseInt(valver[z])) {
+                        count = count + 1;
+                    } else {
+                        z = parver.length;
+                    }
+                    z++;
+                }
+                if (count == parver.length) {
+                    result = false;
+                }
+            }
+        }
+        return result;
+    }
+
 }
+
+
