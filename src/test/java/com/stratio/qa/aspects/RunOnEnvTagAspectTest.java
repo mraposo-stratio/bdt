@@ -79,28 +79,28 @@ public class RunOnEnvTagAspectTest {
     public void testCheckVersion() throws Exception {
         System.setProperty("VERSION","1.0_0-1.0.0");
         assertThatExceptionOfType(Exception.class).isThrownBy(() -> runontag.checkParams(runontag.getParams("@runOnEnv(VERSION>1.0.0-1.0)")))
-                .withMessage("Error while parsing params. The versions has some caracter that it isn't number,.,-");
+                .withMessage("Error while parsing params. The versions have some characters that are not numbers, '.' or '-'");
     }
 
     @Test
     public void testCheckVersion_2() throws Exception {
         System.setProperty("VERSION","1.0.0@1.0.0");
         assertThatExceptionOfType(Exception.class).isThrownBy(() -> runontag.checkParams(runontag.getParams("@runOnEnv(VERSION>1.0.0-1.0)")))
-                .withMessage("Error while parsing params. The versions has some caracter that it isn't number,.,-");
+                .withMessage("Error while parsing params. The versions have some characters that are not numbers, '.' or '-'");
     }
 
     @Test
     public void testCheckVersion_3() throws Exception {
         System.setProperty("VERSION","1.0.0-1.0.0");
         assertThatExceptionOfType(Exception.class).isThrownBy(() -> runontag.checkParams(runontag.getParams("@runOnEnv(VERSION>1.0.*)")))
-                .withMessage("Error while parsing params. The versions has some caracter that it isn't number,.,-");
+                .withMessage("Error while parsing params. The versions have some characters that are not numbers, '.' or '-'");
     }
 
     @Test
     public void testCheckVersion_4() throws Exception {
         System.setProperty("VERSION","1.0.0-1.0.0");
         assertThatExceptionOfType(Exception.class).isThrownBy(() -> runontag.checkParams(runontag.getParams("@runOnEnv(VERSION>1.0.0-0.5.15-/+-)")))
-                .withMessage("Error while parsing params. The versions has some caracter that it isn't number,.,-");
+                .withMessage("Error while parsing params. The versions have some characters that are not numbers, '.' or '-'");
     }
 
     @Test

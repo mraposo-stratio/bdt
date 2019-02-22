@@ -263,7 +263,7 @@ public class RunOnTagAspect {
         boolean result = true;
         String regexp = "^[[[0-9]+.]+[0-9]+][-[[0-9]+.]+[0-9]+]*";
         if (!Pattern.matches(regexp, System.getProperty(param)) || !Pattern.matches(regexp, value)) {
-            throw new Exception("Error while parsing params. The versions has some caracter that it isn't number,.,-");
+            throw new Exception("Error while parsing params. The versions have some characters that are not numbers, '.' or '-'");
         } else if (operador == '=') {
             if (value.contains("-") || System.getProperty(param).contains("-")) {
                 String[] paramversion = System.getProperty(param).split("-");
