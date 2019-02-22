@@ -4,6 +4,14 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 
 ## 0.9.0 (upcoming)
 
+* [QATM-1899] Upgrade Cucumber to 2.4.0
+* [QATM-1981] Refactor specs and tests
+* [QATM-2049] Fix for incorrect step after specs refactor
+* [QATM-1992] Fix include aspect error when we have tags in the next scenario after scenario included
+* [QATM-2054] add new headers in case of governance request
+* [QATM-2058] new step to check REST request does not contain text and fixes for gov requests
+* [QATM-2071] fix step to check services distribution in datacenters
+* [QATM-1974] RunOnEnv / SkipOnEnv improvements
 * [QATM-2067] @always tag allows execute a test even if an important scenario failed previously
 
 ## 0.8.0 (February 07, 2019)
@@ -58,6 +66,8 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 * [QATM-1968] Fix to avoid false errors when we check a query response
 * [QATM-1950] Create step to check resources after uninstall
 * [QATM-1976] Print response if status code returned is different that expected
+* [QATM-1977] New step to create metabase cookie
+* [QATM-1979] New step to obtain metabase session id and generate cookie
 
 ## 0.7.0 (April 05, 2018)
 
