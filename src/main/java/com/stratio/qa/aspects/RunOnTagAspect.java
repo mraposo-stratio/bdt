@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Pattern;
 
 @Aspect
 public class RunOnTagAspect {
@@ -260,7 +261,10 @@ public class RunOnTagAspect {
 
     private boolean checkVersion(char operador, String param, String value) throws Exception {
         boolean result = true;
-        if (operador == '=') {
+        String regexp = "^[[[0-9]+.]+[0-9]+][-[[0-9]+.]+[0-9]+]*";
+        if (!Pattern.matches(regexp, System.getProperty(param)) || !Pattern.matches(regexp, value)) {
+            throw new Exception("Error while parsing params. The versions has some caracter that it isn't number,.,-");
+        } else if (operador == '=') {
             if (value.contains("-") || System.getProperty(param).contains("-")) {
                 String[] paramversion = System.getProperty(param).split("-");
                 String[] valueversion = value.split("-");
@@ -319,7 +323,7 @@ public class RunOnTagAspect {
                         String[] parver = paramversion[j].split("\\.");
                         String[] valver = valueversion[j].split("\\.");
                         if (parver.length != valver.length) {
-                            throw new Exception("Error while parsing params. The versions must have the same numbers of elements");
+                            throw new Exception("Error while parsing params. The versions must have the same number of elements");
                         } else {
                             int count = 0;
                             int z = 0;
@@ -350,7 +354,7 @@ public class RunOnTagAspect {
                 String[] parver = System.getProperty(param).split("\\.");
                 String[] valver = value.split("\\.");
                 if (parver.length != valver.length) {
-                    throw new Exception("Error while parsing params. The versions must have the same numbers of elements");
+                    throw new Exception("Error while parsing params. The versions must have the same number of elements");
                 }
                 int count = 0;
                 int z = 0;
