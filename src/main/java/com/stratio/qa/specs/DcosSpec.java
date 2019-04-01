@@ -24,12 +24,15 @@ import com.stratio.qa.utils.ThreadProperty;
 import cucumber.api.java.en.Given;
 import cucumber.api.java.en.Then;
 import cucumber.api.java.en.When;
+import org.apache.commons.collections.map.HashedMap;
 import org.assertj.core.api.Assertions;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.*;
 import java.util.concurrent.Future;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.jayway.jsonpath.JsonPath;
 
@@ -519,5 +522,217 @@ public class DcosSpec extends BaseGSpec {
         ArrayList cookieList = new ArrayList();
         cookieList.add(cookie);
         this.commonspec.setCookies(cookieList);
+    }
+
+
+    /**
+     * Check if a role of a service complies the established constraints
+     *
+     * @param role    name of role of a service
+     * @param service    name of service of exhibitor
+     * @param instance    name of instance of a service
+     * @param constraints all stablished contraints separated by a semicolumn.
+     *                       Example: constraint1,constraint2,...
+     * @throws Exception
+     */
+    @Then("^The role '(.+?)' of the service '(.+?)' with instance '(.+?)' complies the constraints '(.+?)'$")
+    public void checkComponentPostgresConstraints(String role, String service, String instance, String constraints) throws Exception {
+        checkComponentConstraint(role, service, instance, constraints.split(","));
+    }
+
+    public void checkComponentConstraint(String role, String service, String instance, String[] constraints) throws Exception {
+        for (int i = 0; i < constraints.length; i++) {
+            String[] elements = constraints[i].split(":");
+            if (elements.length == 2) {
+                if (elements[1].equals("UNIQUE") || elements[1].equals("CLUSTER")) {
+                    checkConstraint(role, service, instance, elements[0], elements[1], null);
+                } else if (elements[1].equals("LIKE") || elements[1].equals("UNLIKE") || elements[1].equals("MAX_PER") || elements[1].equals("IS")) {
+                    throw new Exception("Error while parsing constraints. The constraint's format " + elements[1] + " is ATRIBUTE:CONSTRAINT:VALOR");
+                } else if (!elements[1].equals("GROUP_BY")) {
+                    throw new Exception("Error while parsing constraints. Constraints should be CLUSTER, UNIQUE, LIKE, UNLIKE, GROUP_BY, MAX_PER or IS");
+                }
+            } else if (elements.length == 3) {
+                if (elements[1].equals("CLUSTER") || elements[1].equals("LIKE") || elements[1].equals("UNLIKE") || elements[1].equals("GROUP_BY") || elements[1].equals("MAX_PER") || elements[1].equals("IS")) {
+                    checkConstraint(role, service, instance, elements[0], elements[1], elements[2]);
+                } else if (elements[1].equals("UNIQUE")) {
+                    throw new Exception("Error while parsing constraints. The constraint's format " + elements[1] + " is ATRIBUTE:CONSTRAINT");
+                } else {
+                    throw new Exception("Error while parsing constraints. Constraints should be CLUSTER, UNIQUE, LIKE, UNLIKE, GROUP_BY, MAX_PER or IS");
+                }
+            } else {
+                throw new Exception("Error while parsing constraints. The constraint's format is ATRIBUTE:CONSTRAINT:VALOR or ATRIBUTE:CONSTRAINT");
+            }
+        }
+    }
+
+    public void checkConstraint(String role, String service, String instance, String tag, String constraint, String value) throws Exception {
+        RestSpec  restspec = new RestSpec(commonspec);
+        restspec.sendRequestTimeout(100, 5, "GET", "/exhibitor/exhibitor/v1/explorer/node-data?key=%2Fdatastore%2F" + service + "%2F" + instance + "%2Fplan-v2-json&_=", "so that the response contains", null, "str");
+        MiscSpec miscspec = new MiscSpec(commonspec);
+        miscspec.saveElementEnvironment(null, null, "$.str", "exhibitor_answer");
+        CommandExecutionSpec commandexecutionspec = new CommandExecutionSpec(commonspec);
+        if (tag.equals("hostname")) {
+            selectElements(role, service, "agent_hostname");
+            String[] hostnames = ThreadProperty.get("elementsConstraint").split("\"\"");
+            checkConstraintType(role, instance, tag, constraint, value, hostnames);
+        } else {
+            restspec.sendRequestTimeout(100, 5, "GET", "/mesos/slaves", "so that the response contains", null, "slaves");
+            miscspec.saveElementEnvironment(null, null, "$", "mesos_answer");
+            selectElements(role, service, "slaveid");
+            String[] slavesid = ThreadProperty.get("elementsConstraint").split("\"\"");
+            String[] valor = new String[slavesid.length];
+            for (int i = 0; i < slavesid.length; i++) {
+                commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("mesos_answer") + "' | jq '.slaves[] | select(.id == \"" + slavesid[i] + "\").attributes." + tag + "' | sed 's/^.\\|.$//g'", " with exit status ", 0, " and save the value in environment variable ", "valortag");
+                valor[i] = ThreadProperty.get("valortag");
+            }
+            checkConstraintType(role, instance, tag, constraint, value, valor);
+        }
+    }
+
+    private void selectElements (String role, String service, String element) throws Exception {
+        CommandExecutionSpec commandexecutionspec = new CommandExecutionSpec(commonspec);
+        if (service.equals("community") || service.equals("zookeeper")) {
+            int pos = selectExhibitorRole(role, service);
+            if (pos != -1) {
+                commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("exhibitor_answer") + "' | jq '.phases[" + Integer.toString(pos) + "].\"000" + Integer.toString(pos + 1) + "\".steps[][] | select(.status | contains(\"RUNNING\"))." + element + "' | sed '1 s/^\"//g' | sed '$ s/\"$//g'", " with exit status ", 0, " and save the value in environment variable ", "elementsConstraint");
+            } else if (pos == -1) {
+                throw new Exception("Error while parsing arguments. The role " + role + " of the service " + service + " doesn't exist");
+            } else if (pos == -2) {
+                throw new Exception("Error while parsing arguments. The service must be community, pbd or zookeeper");
+            }
+        } else {
+            throw new Exception("The service must be community or zookeeper");
+        }
+    }
+
+    public void checkConstraintType (String role, String instance, String tag, String constraint, String value, String[] elements) throws Exception {
+        Pattern p = value != null ? Pattern.compile(value) : null;
+        Matcher m;
+        switch (constraint) {
+            case "UNIQUE":
+                for (int i = 0; i < elements.length; i++) {
+                    for (int j = i + 1; j < elements.length; j++) {
+                        if (elements[i].equals(elements[j])) {
+                            throw new Exception("The role " + role + " of the instance " + instance + " doesn't complies the established constraint " + tag + ":" + constraint);
+                        }
+                    }
+                }
+                break;
+            case "CLUSTER":
+                if (value == null) {
+                    for (int i = 0; i < elements.length; i++) {
+                        for (int j = i + 1; j < elements.length; j++) {
+                            if (!elements[i].equals(elements[j])) {
+                                throw new Exception("The role " + role + " of the instance " + instance + " doesn't complies the established constraint " + tag + ":" + constraint);
+                            }
+                        }
+                    }
+                } else {
+                    checkConstraintClusterValueIs(role, instance, tag, constraint, value, elements);
+                }
+                break;
+            case "LIKE":
+                for (int i = 0; i < elements.length; i++) {
+                    m = p.matcher(elements[i]);
+                    if (!m.find()) {
+                        throw new Exception("The role " + role + " of the instance " + instance + " doesn't complies the established constraint " + tag + ":" + constraint + ":" + value);
+                    }
+
+                }
+                break;
+            case "UNLIKE":
+                for (int i = 0; i < elements.length; i++) {
+                    m = p.matcher(elements[i]);
+                    if (m.find()) {
+                        throw new Exception("The role " + role + " of the instance " + instance + " doesn't complies the established constraint " + tag + ":" + constraint + ":" + value);
+                    }
+
+                }
+                break;
+            case "IS":
+                checkConstraintClusterValueIs(role, instance, tag, constraint, value, elements);
+                break;
+            case "MAX_PER":
+                Map<String, Integer> diferent = new HashMap<String, Integer>();
+                int count;
+                for (int i = 0; i < elements.length; i++) {
+                    if (!diferent.containsKey(elements[i])) {
+                        diferent.put(elements[i], 1);
+                    } else {
+                        count = diferent.get(elements[i]);
+                        count = count + 1;
+                        diferent.put(elements[i], count);
+                    }
+                }
+                Iterator it = diferent.keySet().iterator();
+                while (it.hasNext()) {
+                    if (diferent.get(it.next()) > Integer.parseInt(value)) {
+                        throw new Exception("The role " + role + " of the instance " + instance + " doesn't complies the established constraint " + tag + ":" + constraint + ":" + value);
+                    }
+                }
+                break;
+            case "GROUP_BY":
+                ArrayList<String> dif = new ArrayList<>();
+                dif.add(elements[0]);
+                boolean ok;
+                for (int i = 1; i < elements.length; i++) {
+                    ok = false;
+                    for (int j = 0; j < dif.size(); j++) {
+                        if (elements[i].equals(dif.get(j))) {
+                            ok = true;
+                            j = dif.size();
+                        }
+                    }
+                    if (!ok) {
+                        dif.add(elements[i]);
+                    }
+                }
+                if (dif.size() > Integer.parseInt(value)) {
+                    throw new Exception("The role " + role + " of the instance " + instance + " doesn't complies the established constraint " + tag + ":" + constraint + ":" + value);
+                }
+                break;
+            default:
+                throw new Exception("Error while parsing constraints. Constraints should be CLUSTER, UNIQUE, LIKE, UNLIKE, GROUP_BY, UNIQUE, LIKE, UNLIKE, GROUP_BY, MAX_PER or IS");
+        }
+    }
+
+    public void checkConstraintClusterValueIs (String role, String instance, String tag, String constraint, String value, String[] elements) throws Exception {
+        for (int i = 0; i < elements.length; i++) {
+            for (int j = i + 1; j < elements.length; j++) {
+                if (!elements[i].equals(elements[j]) || !elements[i].equals(value)) {
+                    throw new Exception("The role " + role + " of the instance " + instance + " doesn't complies the established constraint " + tag + ":" + constraint + ":" + value);
+                }
+            }
+        }
+    }
+
+    private int selectExhibitorRole(String role, String service) {
+        switch (service) {
+            case "community":
+                switch (role) {
+                    case "master": return 0;
+                    case "sync_slave": return 1;
+                    case "async_slave": return 2;
+                    case "agent": return 3;
+                    default: return -1;
+                }
+            case "pbd":
+                switch (role) {
+                    case "gtm": return 0;
+                    case "gtm_slave": return 1;
+                    case "gtm_proxy": return 2;
+                    case "datanode": return 3;
+                    case "datanode_slave": return 4;
+                    case "coordinator": return 5;
+                    case "agent": return 6;
+                    default: return -1;
+                }
+            case "zookeeper":
+                switch (role) {
+                    case "zkNode": return 0;
+                    default: return -1;
+                }
+            default: return -2;
+        }
     }
 }
