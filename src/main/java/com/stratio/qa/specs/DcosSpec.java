@@ -536,31 +536,23 @@ public class DcosSpec extends BaseGSpec {
      * @throws Exception
      */
     @Then("^The role '(.+?)' of the service '(.+?)' with instance '(.+?)' complies the constraints '(.+?)'$")
-    public void checkComponentPostgresConstraints(String role, String service, String instance, String constraints) throws Exception {
+    public void checkComponentConstraints(String role, String service, String instance, String constraints) throws Exception {
         checkComponentConstraint(role, service, instance, constraints.split(","));
     }
 
     public void checkComponentConstraint(String role, String service, String instance, String[] constraints) throws Exception {
         for (int i = 0; i < constraints.length; i++) {
             String[] elements = constraints[i].split(":");
+            Assertions.assertThat(elements.length).overridingErrorMessage("Error while parsing constraints. The constraint's format is ATRIBUTE:CONSTRAINT:VALOR or ATRIBUTE:CONSTRAINT").isIn(2, 3);
+            Assertions.assertThat(elements[1]).overridingErrorMessage("Error while parsing constraints. Constraints should be CLUSTER, UNIQUE, LIKE, UNLIKE, GROUP_BY, MAX_PER or IS").isIn("UNIQUE", "CLUSTER", "GROUP_BY", "LIKE", "UNLIKE", "MAX_PER", "IS");
             if (elements.length == 2) {
-                if (elements[1].equals("UNIQUE") || elements[1].equals("CLUSTER")) {
+                Assertions.assertThat(elements[1]).overridingErrorMessage("Error while parsing constraints. The constraint's format " + elements[1] + " is ATRIBUTE:CONSTRAINT:VALOR").isIn("UNIQUE", "CLUSTER", "GROUP_BY");
+                if (!elements[1].equals("GROUP_BY")) {
                     checkConstraint(role, service, instance, elements[0], elements[1], null);
-                } else if (elements[1].equals("LIKE") || elements[1].equals("UNLIKE") || elements[1].equals("MAX_PER") || elements[1].equals("IS")) {
-                    throw new Exception("Error while parsing constraints. The constraint's format " + elements[1] + " is ATRIBUTE:CONSTRAINT:VALOR");
-                } else if (!elements[1].equals("GROUP_BY")) {
-                    throw new Exception("Error while parsing constraints. Constraints should be CLUSTER, UNIQUE, LIKE, UNLIKE, GROUP_BY, MAX_PER or IS");
-                }
-            } else if (elements.length == 3) {
-                if (elements[1].equals("CLUSTER") || elements[1].equals("LIKE") || elements[1].equals("UNLIKE") || elements[1].equals("GROUP_BY") || elements[1].equals("MAX_PER") || elements[1].equals("IS")) {
-                    checkConstraint(role, service, instance, elements[0], elements[1], elements[2]);
-                } else if (elements[1].equals("UNIQUE")) {
-                    throw new Exception("Error while parsing constraints. The constraint's format " + elements[1] + " is ATRIBUTE:CONSTRAINT");
-                } else {
-                    throw new Exception("Error while parsing constraints. Constraints should be CLUSTER, UNIQUE, LIKE, UNLIKE, GROUP_BY, MAX_PER or IS");
                 }
             } else {
-                throw new Exception("Error while parsing constraints. The constraint's format is ATRIBUTE:CONSTRAINT:VALOR or ATRIBUTE:CONSTRAINT");
+                Assertions.assertThat(elements[1]).overridingErrorMessage("Error while parsing constraints. The constraint's format " + elements[1] + " is ATRIBUTE:CONSTRAINT").isNotEqualTo("UNIQUE");
+                checkConstraint(role, service, instance, elements[0], elements[1], elements[2]);
             }
         }
     }
@@ -570,6 +562,7 @@ public class DcosSpec extends BaseGSpec {
         restspec.sendRequestTimeout(100, 5, "GET", "/exhibitor/exhibitor/v1/explorer/node-data?key=%2Fdatastore%2F" + service + "%2F" + instance + "%2Fplan-v2-json&_=", "so that the response contains", null, "str");
         MiscSpec miscspec = new MiscSpec(commonspec);
         miscspec.saveElementEnvironment(null, null, "$.str", "exhibitor_answer");
+        Assertions.assertThat(ThreadProperty.get("exhibitor_answer")).overridingErrorMessage("Error while parsing constraints. The instance " + instance + " of the service " + service + " isn't deployed").isNotEmpty();
         CommandExecutionSpec commandexecutionspec = new CommandExecutionSpec(commonspec);
         if (tag.equals("hostname")) {
             selectElements(role, service, "agent_hostname");
@@ -591,18 +584,10 @@ public class DcosSpec extends BaseGSpec {
 
     private void selectElements (String role, String service, String element) throws Exception {
         CommandExecutionSpec commandexecutionspec = new CommandExecutionSpec(commonspec);
-        if (service.equals("community") || service.equals("zookeeper")) {
-            int pos = selectExhibitorRole(role, service);
-            if (pos != -1) {
-                commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("exhibitor_answer") + "' | jq '.phases[" + Integer.toString(pos) + "].\"000" + Integer.toString(pos + 1) + "\".steps[][] | select(.status | contains(\"RUNNING\"))." + element + "' | sed '1 s/^\"//g' | sed '$ s/\"$//g'", " with exit status ", 0, " and save the value in environment variable ", "elementsConstraint");
-            } else if (pos == -1) {
-                throw new Exception("Error while parsing arguments. The role " + role + " of the service " + service + " doesn't exist");
-            } else if (pos == -2) {
-                throw new Exception("Error while parsing arguments. The service must be community, pbd or zookeeper");
-            }
-        } else {
-            throw new Exception("The service must be community or zookeeper");
-        }
+        Assertions.assertThat(service).overridingErrorMessage("Error while parsing arguments. The service must be community, pbd or zookeeper").isIn("community", "zookeeper", "pbd");
+        int pos = selectExhibitorRole(role, service);
+        Assertions.assertThat(pos).overridingErrorMessage("Error while parsing arguments. The role " + role + " of the service " + service + " doesn't exist").isNotEqualTo(-1);
+        commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("exhibitor_answer") + "' | jq '.phases[" + Integer.toString(pos) + "].\"000" + Integer.toString(pos + 1) + "\".steps[][] | select(.status | contains(\"RUNNING\"))." + element + "' | sed '1 s/^\"//g' | sed '$ s/\"$//g'", " with exit status ", 0, " and save the value in environment variable ", "elementsConstraint");
     }
 
     public void checkConstraintType (String role, String instance, String tag, String constraint, String value, String[] elements) throws Exception {
@@ -612,9 +597,7 @@ public class DcosSpec extends BaseGSpec {
             case "UNIQUE":
                 for (int i = 0; i < elements.length; i++) {
                     for (int j = i + 1; j < elements.length; j++) {
-                        if (elements[i].equals(elements[j])) {
-                            throw new Exception("The role " + role + " of the instance " + instance + " doesn't complies the established constraint " + tag + ":" + constraint);
-                        }
+                        Assertions.assertThat(elements[i]).overridingErrorMessage("The role " + role + " of the instance " + instance + " doesn't complies the established constraint " + tag + ":" + constraint).isNotEqualTo(elements[j]);
                     }
                 }
                 break;
@@ -622,9 +605,7 @@ public class DcosSpec extends BaseGSpec {
                 if (value == null) {
                     for (int i = 0; i < elements.length; i++) {
                         for (int j = i + 1; j < elements.length; j++) {
-                            if (!elements[i].equals(elements[j])) {
-                                throw new Exception("The role " + role + " of the instance " + instance + " doesn't complies the established constraint " + tag + ":" + constraint);
-                            }
+                            Assertions.assertThat(elements[i]).overridingErrorMessage("The role " + role + " of the instance " + instance + " doesn't complies the established constraint " + tag + ":" + constraint).isEqualTo(elements[j]);
                         }
                     }
                 } else {
@@ -634,19 +615,13 @@ public class DcosSpec extends BaseGSpec {
             case "LIKE":
                 for (int i = 0; i < elements.length; i++) {
                     m = p.matcher(elements[i]);
-                    if (!m.find()) {
-                        throw new Exception("The role " + role + " of the instance " + instance + " doesn't complies the established constraint " + tag + ":" + constraint + ":" + value);
-                    }
-
+                    Assertions.assertThat(m.find()).overridingErrorMessage("The role " + role + " of the instance " + instance + " doesn't complies the established constraint " + tag + ":" + constraint + ":" + value).isEqualTo(true);
                 }
                 break;
             case "UNLIKE":
                 for (int i = 0; i < elements.length; i++) {
                     m = p.matcher(elements[i]);
-                    if (m.find()) {
-                        throw new Exception("The role " + role + " of the instance " + instance + " doesn't complies the established constraint " + tag + ":" + constraint + ":" + value);
-                    }
-
+                    Assertions.assertThat(m.find()).overridingErrorMessage("The role " + role + " of the instance " + instance + " doesn't complies the established constraint " + tag + ":" + constraint + ":" + value).isEqualTo(false);
                 }
                 break;
             case "IS":
@@ -699,9 +674,8 @@ public class DcosSpec extends BaseGSpec {
     public void checkConstraintClusterValueIs (String role, String instance, String tag, String constraint, String value, String[] elements) throws Exception {
         for (int i = 0; i < elements.length; i++) {
             for (int j = i + 1; j < elements.length; j++) {
-                if (!elements[i].equals(elements[j]) || !elements[i].equals(value)) {
-                    throw new Exception("The role " + role + " of the instance " + instance + " doesn't complies the established constraint " + tag + ":" + constraint + ":" + value);
-                }
+                Assertions.assertThat(elements[i]).overridingErrorMessage("The role " + role + " of the instance " + instance + " doesn't complies the established constraint " + tag + ":" + constraint + ":" + value).isEqualTo(elements[j]);
+                Assertions.assertThat(elements[i]).overridingErrorMessage("The role " + role + " of the instance " + instance + " doesn't complies the established constraint " + tag + ":" + constraint + ":" + value).isEqualTo(value);
             }
         }
     }
