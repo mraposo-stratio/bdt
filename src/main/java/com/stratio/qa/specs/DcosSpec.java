@@ -660,8 +660,8 @@ public class DcosSpec extends BaseGSpec {
                         dif.add(elements[i]);
                     }
                 }
-               Assertions.assertThat(dif.size()).overridingErrorMessage("The role " + role + " of the instance " + instance + " doesn't complies the established constraint " + tag + ":" + constraint + ":" + value).isLessThanOrEqualTo(Integer.parseInt(value));
-               break;
+                Assertions.assertThat(dif.size()).overridingErrorMessage("The role " + role + " of the instance " + instance + " doesn't complies the established constraint " + tag + ":" + constraint + ":" + value).isLessThanOrEqualTo(Integer.parseInt(value));
+                break;
             default:
                 commonspec.getExceptions().add(new Exception("Error while parsing constraints. Constraints should be CLUSTER, UNIQUE, LIKE, UNLIKE, GROUP_BY, UNIQUE, LIKE, UNLIKE, GROUP_BY, MAX_PER or IS"));
         }
