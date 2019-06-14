@@ -649,7 +649,7 @@ public class DcosSpec extends BaseGSpec {
                 } else {
                     estadoNodo = "RUNNING";
                 }
-                restspec.sendRequestTimeout(timeout, wait, requestType, endPoint, dataNodes[i], "\"" + dataNodes[i] + "\",\"role\":\"" + role + "\",\"status\":\"" + estadoNodo + "\"");
+                restspec.sendRequestTimeout(timeout, wait, requestType, endPoint, null, dataNodes[i] + "\",\"role\":\"" + role + "\",\"status\":\"" + estadoNodo);
             }
 
         } else {
@@ -659,7 +659,7 @@ public class DcosSpec extends BaseGSpec {
                 } else {
                     estadoNodo = "RUNNING";
                 }
-                restspec.sendRequestTimeout(timeout, wait, requestType, endPoint, dataNodes[i], "\"" + dataNodes[i] + "\",\"role\":\"" + role + "\",\"status\":\"" + estadoNodo + "\"");
+                restspec.sendRequestTimeout(timeout, wait, requestType, endPoint, null, dataNodes[i] + "\",\"role\":\"" + role + "\",\"status\":\"" + estadoNodo);
             }
         }
     }
