@@ -1003,5 +1003,4 @@ public class DcosSpec extends BaseGSpec {
         obtainInfoFromDescriptor("PUBLIC_NODE", varPublicNode);
         obtainInfoFromDescriptor("ACCESS_POINT", varAccessPoint);
     }
-
 }
