@@ -595,13 +595,13 @@ public class DcosSpec extends BaseGSpec {
             String[] hostnames = ThreadProperty.get("elementsConstraint").split("\n");
             checkConstraintType(role, instance, tag, constraint, value, hostnames);
         } else {
-            restspec.sendRequestTimeout(100, 5, "GET", "/mesos/slaves", null, "slaves");
-            miscspec.saveElementEnvironment(null, "$", "mesos_answer");
             selectElements(role, service, "slaveid");
             String[] slavesid = ThreadProperty.get("elementsConstraint").split("\n");
             String[] valor = new String[slavesid.length];
             for (int i = 0; i < slavesid.length; i++) {
-                commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("mesos_answer") + "' | jq '.slaves[] | select(.id == \"" + slavesid[i] + "\").attributes." + tag + "' | sed 's/^.\\|.$//g'", "0", "valortag");
+                restspec.sendRequestTimeout(100, 5, "GET", "/mesos/slaves?slave_id=" + slavesid[i], null, "slaves");
+                miscspec.saveElementEnvironment(null, "$", "mesos_answer");
+                commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("mesos_answer") + "' | jq '.slaves[0].attributes." + tag + "' | sed 's/^.\\|.$//g'", "0", "valortag");
                 valor[i] = ThreadProperty.get("valortag");
             }
             checkConstraintType(role, instance, tag, constraint, value, valor);
