@@ -2191,27 +2191,26 @@ public class CommonG {
      * @param key:     server private key
      * @throws Exception exception     *
      */
-    public void connectToPostgreSQLDatabase(String database, String host, String port, String user, String
+    public void connectToPostgreSQLDatabase(String encryption, String database, String host, String port, String user, String
             password, Boolean secure, String ca, String crt, String key) throws SQLException {
-
+        Properties props = new Properties();
         if (port.startsWith("[")) {
             port = port.substring(1, port.length() - 1);
         }
+        if (user != null) {
+            props.setProperty("user", user);
+        }
         if (!secure) {
-            if (password == null) {
-                password = "stratio";
+            if (password != null) {
+                props.setProperty("password", password);
+            } else {
+                props.setProperty("password", "stratio");
             }
-            try {
-                myConnection = DriverManager.getConnection("jdbc:postgresql://" + host + ":" + port + "/" + database, user, password);
-            } catch (SQLException se) {
-                // log the exception
-                this.getLogger().error(se.getMessage());
-                // re-throw the exception
-                throw se;
+            if (encryption != null) {
+                props.setProperty("ssl", "true");
+                props.setProperty("sslmode", "prefer");
             }
-
         } else {
-            Properties props = new Properties();
             if (user != null) {
                 props.setProperty("user", user);
             }
@@ -2227,17 +2226,14 @@ public class CommonG {
             props.setProperty("password", "null");
             props.setProperty("ssl", "true");
             props.setProperty("sslmode", "verify-full");
-
-
-            try {
-                myConnection = DriverManager.getConnection("jdbc:postgresql://" + host + ":" + port + "/" + database, props);
-            } catch (SQLException se) {
-                // log the exception
-                this.getLogger().error(se.getMessage());
-                // re-throw the exception
-                throw se;
-            }
-
+        }
+        try {
+            myConnection = DriverManager.getConnection("jdbc:postgresql://" + host + ":" + port + "/" + database, props);
+        } catch (SQLException se) {
+            // log the exception
+            this.getLogger().error(se.getMessage());
+            // re-throw the exception
+            throw se;
         }
     }
 
