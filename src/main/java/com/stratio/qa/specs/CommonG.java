@@ -2227,6 +2227,7 @@ public class CommonG {
             props.setProperty("ssl", "true");
             props.setProperty("sslmode", "verify-full");
         }
+        
         try {
             myConnection = DriverManager.getConnection("jdbc:postgresql://" + host + ":" + port + "/" + database, props);
         } catch (SQLException se) {
