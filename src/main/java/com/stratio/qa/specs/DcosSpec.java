@@ -562,9 +562,9 @@ public class DcosSpec extends BaseGSpec {
     /**
      * Check if a role of a service complies the established constraints
      *
-     * @param role        name of role of a service
+     * @param role        name of role of a service or scheduler
      * @param service     name of service of exhibitor
-     * @param instance    name of instance of a service
+     * @param instance    name of instance of a service, for scheduler is id
      * @param constraints all stablished contraints separated by a semicolumn.
      *                    Example: constraint1,constraint2,...
      * @throws Exception
@@ -593,17 +593,31 @@ public class DcosSpec extends BaseGSpec {
 
     public void checkConstraint(String role, String service, String instance, String tag, String constraint, String value) throws Exception {
         RestSpec restspec = new RestSpec(commonspec);
-        restspec.sendRequestTimeout(100, 5, "GET", "/exhibitor/exhibitor/v1/explorer/node-data?key=%2Fdatastore%2F" + service + "%2F" + instance + "%2Fplan-v2-json&_=", null, "str");
         MiscSpec miscspec = new MiscSpec(commonspec);
-        miscspec.saveElementEnvironment(null, "$.str", "exhibitor_answer");
-        Assertions.assertThat(ThreadProperty.get("exhibitor_answer")).overridingErrorMessage("Error while parsing constraints. The instance " + instance + " of the service " + service + " isn't deployed").isNotEmpty();
+        if (role.equals("scheduler")) {
+            restspec.sendRequestTimeout(100, 5, "GET", "/service/marathon/v2/apps" + instance, null, "app");
+            miscspec.saveElementEnvironment(null, "$.app", "marathon_answer");
+            Assertions.assertThat(ThreadProperty.get("marathon_answer")).overridingErrorMessage("Error while parsing constraints. The instance " + instance + " of the service " + service + " isn't deployed").isNotEmpty();
+        } else {
+            restspec.sendRequestTimeout(100, 5, "GET", "/exhibitor/exhibitor/v1/explorer/node-data?key=%2Fdatastore%2F" + service + "%2F" + instance + "%2Fplan-v2-json&_=", null, "str");
+            miscspec.saveElementEnvironment(null, "$.str", "exhibitor_answer");
+            Assertions.assertThat(ThreadProperty.get("exhibitor_answer")).overridingErrorMessage("Error while parsing constraints. The instance " + instance + " of the service " + service + " isn't deployed").isNotEmpty();
+        }
         CommandExecutionSpec commandexecutionspec = new CommandExecutionSpec(commonspec);
         if (tag.equals("hostname")) {
-            selectElements(role, service, "agent_hostname");
+            if (role.equals("scheduler")) {
+                commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("marathon_answer") + "' | jq .tasks[0].host | sed 's/\"//g'", "0", "elementsConstraint");
+            } else {
+                selectElements(role, service, "agent_hostname");
+            }
             String[] hostnames = ThreadProperty.get("elementsConstraint").split("\n");
             checkConstraintType(role, instance, tag, constraint, value, hostnames);
         } else {
-            selectElements(role, service, "slaveid");
+            if (role.equals("scheduler")) {
+                commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("marathon_answer") + "' | jq .tasks[0].slaveId | sed 's/\"//g'", "0", "elementsConstraint");
+            } else {
+                selectElements(role, service, "slaveid");
+            }
             String[] slavesid = ThreadProperty.get("elementsConstraint").split("\n");
             String[] valor = new String[slavesid.length];
             for (int i = 0; i < slavesid.length; i++) {
