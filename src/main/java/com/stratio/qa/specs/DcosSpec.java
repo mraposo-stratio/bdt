@@ -923,6 +923,7 @@ public class DcosSpec extends BaseGSpec {
 
     }
 
+
     /**
      * Obtains basic information for tests from descriptor file:
      * EOS_CLUSTER_ID, EOS_DNS_SEARCH, EOS_INTERNAL_DOMAIN, DCOS_IP, DCOS_USER, DCOS_TENANT, VAULT_TOKEN
