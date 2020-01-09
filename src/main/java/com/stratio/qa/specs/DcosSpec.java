@@ -691,18 +691,14 @@ public class DcosSpec extends BaseGSpec {
     public void selectElements(String role, String service, String element, String elementValue, String envValue) throws Exception {
         CommandExecutionSpec commandexecutionspec = new CommandExecutionSpec(commonspec);
         Assertions.assertThat(service).overridingErrorMessage("Error while parsing arguments. The service must be one of them: [community, pbd, zookeeper, ignite, kubernetes, etcd, arangodb, hdfs]").isIn("community", "zookeeper", "pbd", "ignite", "kubernetes", "etcd", "arangodb", "hdfs");
-        int pos = selectExhibitorRole(role, service);
-        Assertions.assertThat(pos).overridingErrorMessage("Error while parsing arguments. The role " + role + " of the service " + service + " doesn't exist").isNotEqualTo(-1);
-        commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("exhibitor_answer") + "' | jq '.phases[" + pos + "].\"000" + (pos + 1) + "\".steps[][] | select(.status | contains(\"RUNNING\")) | select(." + element + " | contains(\"" + elementValue + "\")).name' | sed 's/\"//g'", "0", envValue);
+        commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("exhibitor_answer") + "' | jq '.phases[] | .[] | .steps[] | .[] | select(.role==\"" + role + "\") | select(.status==\"RUNNING\") | select(." + element + "==\"" + elementValue + "\").name' | sed 's/\"//g'", "0", envValue);
     }
 
 
     public void selectElements(String role, String service, String element) throws Exception {
         CommandExecutionSpec commandexecutionspec = new CommandExecutionSpec(commonspec);
         Assertions.assertThat(service).overridingErrorMessage("Error while parsing arguments. The service must be one of them: [community, pbd, zookeeper, ignite, kubernetes, etcd, arangodb, hdfs]").isIn("community", "zookeeper", "pbd", "ignite", "kubernetes", "etcd", "arangodb", "hdfs");
-        int pos = selectExhibitorRole(role, service);
-        Assertions.assertThat(pos).overridingErrorMessage("Error while parsing arguments. The role " + role + " of the service " + service + " doesn't exist").isNotEqualTo(-1);
-        commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("exhibitor_answer") + "' | jq '.phases[" + pos + "].\"000" + (pos + 1) + "\".steps[][] | select(.status | contains(\"RUNNING\"))." + element + "' | sed 's/\"//g'", "0", "elementsConstraint");
+        commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("exhibitor_answer") + "' | jq '.phases[] | .[] | .steps[] | .[] | select(.role==\"" + role + "\") | select(.status==\"RUNNING\")." + element + "' | sed 's/\"//g'", "0", "elementsConstraint");
     }
 
     public void checkConstraintType(String role, String instance, String tag, String constraint, String value, String[] elements) throws Exception {
@@ -788,107 +784,6 @@ public class DcosSpec extends BaseGSpec {
                 Assertions.assertThat(elements[i]).overridingErrorMessage("The role " + role + " of the instance " + instance + " doesn't complies the established constraint " + tag + ":" + constraint + ":" + value).isEqualTo(elements[j]);
                 Assertions.assertThat(elements[i]).overridingErrorMessage("The role " + role + " of the instance " + instance + " doesn't complies the established constraint " + tag + ":" + constraint + ":" + value).isEqualTo(value);
             }
-        }
-    }
-
-    private int selectExhibitorRole(String role, String service) {
-        switch (service) {
-            case "community":
-                switch (role) {
-                    case "master":
-                        return 0;
-                    case "sync_slave":
-                        return 1;
-                    case "async_slave":
-                        return 2;
-                    case "agent":
-                        return 3;
-                    default:
-                        return -1;
-                }
-            case "pbd":
-                switch (role) {
-                    case "gtm":
-                        return 0;
-                    case "gtm_slave":
-                        return 1;
-                    case "gtm_proxy":
-                        return 2;
-                    case "datanode":
-                        return 3;
-                    case "datanode_slave":
-                        return 4;
-                    case "coordinator":
-                        return 5;
-                    case "agent":
-                        return 6;
-                    default:
-                        return -1;
-                }
-            case "zookeeper":
-                switch (role) {
-                    case "zkNode":
-                        return 0;
-                    default:
-                        return -1;
-                }
-            case "ignite":
-                switch (role) {
-                    case "ignite":
-                        return 0;
-                    default:
-                        return -1;
-                }
-            case "etcd":
-                switch (role) {
-                    case "etcd":
-                        return 0;
-                    default:
-                        return -1;
-                }
-            case "kubernetes":
-                switch (role) {
-                    case "DEX":
-                        return 0;
-                    case "API_SERVER":
-                        return 1;
-                    case "CONTROLLER":
-                        return 2;
-                    case "SCHEDULER":
-                        return 3;
-                    case "CALICO_CONTROLLERS":
-                        return 4;
-                    case "PROXY":
-                        return 5;
-                    case "KUBELET":
-                        return 6;
-                    default:
-                        return -1;
-                }
-            case "arangodb":
-                switch (role) {
-                    case "arango-agent":
-                        return 0;
-                    case "arango-server":
-                        return 1;
-                    case "arango-coordinator":
-                        return 2;
-                    default:
-                        return -1;
-                }
-            case "hdfs":
-                switch (role) {
-                    case "journalnode":
-                        return 0;
-                    case "namenode":
-                        return 1;
-                    case "datanode":
-                        return 2;
-                    default:
-                        return -1;
-                }
-            default:
-                return -2;
         }
     }
 
