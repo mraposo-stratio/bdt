@@ -21,6 +21,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -307,6 +308,23 @@ public class ElasticSearchUtils extends RestClient.FailureListener {
         IndexRequest request = new IndexRequest(indexName).id(id).source(document);
         try {
             client.index(request, RequestOptions.DEFAULT);
+        } catch (IOException e) {
+            throw new ElasticsearchException("Error indexing document");
+        }
+    }
+
+    /**
+     * Indexes a document.
+     *
+     * @param indexName
+     * @param id          unique identifier of the document
+     * @throws Exception
+     */
+    public boolean existsDocument(String indexName, String id) {
+        GetRequest request = new GetRequest(indexName, id);
+
+        try {
+            return client.exists(request, RequestOptions.DEFAULT);
         } catch (IOException e) {
             throw new ElasticsearchException("Error indexing document");
         }

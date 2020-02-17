@@ -33,6 +33,9 @@ import cucumber.api.java.en.When;
 import io.cucumber.datatable.DataTable;
 import org.assertj.core.api.Assertions;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.testng.Assert;
 
 import javax.net.ssl.SSLException;
@@ -556,11 +559,36 @@ public class DatabaseSpec extends BaseGSpec {
      * @throws Exception
      */
     @When("^I index a document in the index named '(.+?)' with key '(.+?)' and value '(.+?)'$")
-    public void indexElasticsearchDocument(String indexName, String key, String value) throws Exception {
+    public void indexElasticsearchDocumentWithMapping(String indexName, String key, String value) throws Exception {
         ArrayList<XContentBuilder> mappingsource = new ArrayList<XContentBuilder>();
         XContentBuilder builder = jsonBuilder().startObject().field(key, value).endObject();
         mappingsource.add(builder);
         commonspec.getElasticSearchClient().createMapping(indexName, mappingsource);
+    }
+
+    /**
+     * Index a document.
+     *
+     * @param indexName
+     * @param json
+     * @throws Exception
+     */
+    @When("^I index a document '(.+?)' with id '(.+?)' in the index named '(.+?)'$")
+    public void indexElasticsearchDocument(String indexName, String id, String json) throws Exception {
+
+        XContentBuilder document = XContentFactory.jsonBuilder().value(json);
+        commonspec.getElasticSearchClient().indexDocument(indexName, id,  document);
+    }
+
+    /**
+     * Check that the ElasticSearch index exists.
+     *
+     * @param documentId
+     * @param indexName
+     */
+    @Then("^An elasticsearch document id '(.+?)' exists in an index named '(.+?)'")
+    public void elasticSearchDocumentExist(String documentId, String indexName) {
+        assert (commonspec.getElasticSearchClient().existsDocument(indexName, documentId)) : "There is no document in these index";
     }
 
     /*
