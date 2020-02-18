@@ -33,10 +33,12 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -304,6 +306,24 @@ public class ElasticSearchUtils extends RestClient.FailureListener {
      * @param document
      * @throws Exception
      */
+    public void indexDocument(String indexName, String id, String document) {
+
+        IndexRequest request = new IndexRequest(indexName).id(id).source(document, XContentType.JSON);
+        try {
+            client.index(request, RequestOptions.DEFAULT);
+        } catch (IOException e) {
+            throw new ElasticsearchException("Error indexing document");
+        }
+    }
+
+    /**
+     * Indexes a document.
+     *
+     * @param indexName
+     * @param id          unique identifier of the document
+     * @param document
+     * @throws Exception
+     */
     public void indexDocument(String indexName, String id, XContentBuilder document) {
         IndexRequest request = new IndexRequest(indexName).id(id).source(document);
         try {
@@ -322,6 +342,9 @@ public class ElasticSearchUtils extends RestClient.FailureListener {
      */
     public boolean existsDocument(String indexName, String id) {
         GetRequest request = new GetRequest(indexName, id);
+
+        request.fetchSourceContext(new FetchSourceContext(false));
+        request.storedFields("_none_");
 
         try {
             return client.exists(request, RequestOptions.DEFAULT);

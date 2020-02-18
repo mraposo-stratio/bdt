@@ -569,15 +569,14 @@ public class DatabaseSpec extends BaseGSpec {
     /**
      * Index a document.
      *
-     * @param indexName
      * @param json
+     * @param indexName
      * @throws Exception
      */
     @When("^I index a document '(.+?)' with id '(.+?)' in the index named '(.+?)'$")
-    public void indexElasticsearchDocument(String indexName, String id, String json) throws Exception {
+    public void indexElasticsearchDocument(String json, String id, String indexName) throws Exception {
 
-        XContentBuilder document = XContentFactory.jsonBuilder().value(json);
-        commonspec.getElasticSearchClient().indexDocument(indexName, id,  document);
+        commonspec.getElasticSearchClient().indexDocument(indexName, id,  json);
     }
 
     /**
