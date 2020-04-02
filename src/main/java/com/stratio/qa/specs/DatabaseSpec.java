@@ -352,6 +352,9 @@ public class DatabaseSpec extends BaseGSpec {
     /**
      * Connect to JDBC secured/not secured database
      *
+     * @param securityType  database security type string
+     * @param encryption  database encription string
+     * @param trans  database transactional string
      * @param database  database connection string
      * @param host      database host
      * @param port      database port
@@ -362,20 +365,20 @@ public class DatabaseSpec extends BaseGSpec {
      * @param key:      database private key
      * @throws Exception exception     *
      */
-    @Given("^I connect with JDBC and security type '(TLS|MD5|TRUST|CERT|LDAP|tls|md5|trust|cert|ldap)'( and encryption)? to database '(.+?)' on host '(.+?)' and port '(.+?)' with user '(.+?)'( and password '(.+?)')?( and root ca '(.+?)')?(, crt '(.+?)')?( and key '(.+?)' certificates)?$")
-    public void connectDatabasePostgres(String securityType, String encryption, String database, String host, String port, String user, String password, String ca, String crt, String key) throws Exception {
+    @Given("^I connect with JDBC and security type '(TLS|MD5|TRUST|CERT|LDAP|tls|md5|trust|cert|ldap)'( and encryption)? to database( transactional)? '(.+?)' on host '(.+?)' and port '(.+?)' with user '(.+?)'( and password '(.+?)')?( and root ca '(.+?)')?(, crt '(.+?)')?( and key '(.+?)' certificates)?$")
+    public void connectDatabasePostgres(String securityType, String encryption, String trans, String database, String host, String port, String user, String password, String ca, String crt, String key) throws Exception {
         this.commonspec.getExceptions().clear();
         if ("TLS".equals(securityType) || "tls".equals(securityType) || "CERT".equals(securityType) || "cert".equals(securityType)) {
             commonspec.getLogger().debug("opening secure database");
             try {
-                this.commonspec.connectToPostgreSQLDatabase(encryption, database, host, port, user, password, true, ca, crt, key);
+                this.commonspec.connectToPostgreSQLDatabase(encryption, trans, database, host, port, user, password, true, ca, crt, key);
             } catch (Exception e) {
                 this.commonspec.getExceptions().add(e);
             }
         } else {
             commonspec.getLogger().debug("opening database");
             try {
-                this.commonspec.connectToPostgreSQLDatabase(encryption, database, host, port, user, password, false, ca, crt, key);
+                this.commonspec.connectToPostgreSQLDatabase(encryption, trans, database, host, port, user, password, false, ca, crt, key);
             } catch (Exception e) {
                 this.commonspec.getExceptions().add(e);
             }

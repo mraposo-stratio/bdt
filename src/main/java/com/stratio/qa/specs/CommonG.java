@@ -2206,7 +2206,7 @@ public class CommonG {
      * @param key:     server private key
      * @throws Exception exception     *
      */
-    public void connectToPostgreSQLDatabase(String encryption, String database, String host, String port, String user, String
+    public void connectToPostgreSQLDatabase(String encryption, String trans, String database, String host, String port, String user, String
             password, Boolean secure, String ca, String crt, String key) throws SQLException {
         Properties props = new Properties();
         if (port.startsWith("[")) {
@@ -2225,6 +2225,9 @@ public class CommonG {
                 props.setProperty("ssl", "true");
                 props.setProperty("sslmode", "prefer");
             }
+            if (trans != null) {
+                props.setProperty("prepareThreshold", "0");
+            }
         } else {
             if (user != null) {
                 props.setProperty("user", user);
@@ -2241,6 +2244,9 @@ public class CommonG {
             props.setProperty("password", "null");
             props.setProperty("ssl", "true");
             props.setProperty("sslmode", "verify-full");
+            if (trans != null) {
+                props.setProperty("prepareThreshold", "0");
+            }
         }
         try {
             myConnection = DriverManager.getConnection("jdbc:postgresql://" + host + ":" + port + "/" + database, props);
