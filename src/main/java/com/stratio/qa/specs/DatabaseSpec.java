@@ -1504,4 +1504,3 @@ public class DatabaseSpec extends BaseGSpec {
         assertThat(tablePattern).as("response is not equal to the expected").isEqualTo(sqlTable);
     }
 }
-
