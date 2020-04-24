@@ -562,7 +562,7 @@ public class DcosSpec extends BaseGSpec {
         MiscSpec miscspec = new MiscSpec(commonspec);
         if (role.equals("scheduler")) {
             restspec.sendRequestTimeout(100, 5, "GET", "/service/marathon/v2/apps" + instance, null, "app");
-            miscspec.saveElementEnvironment(null, "$.app", "marathon_answer");
+            miscspec.saveElementEnvironment(null, "$.app.tasks[0]", "marathon_answer");
             Assertions.assertThat(ThreadProperty.get("marathon_answer")).overridingErrorMessage("Error while parsing constraints. The instance " + instance + " of the service " + service + " isn't deployed").isNotEmpty();
         } else {
             restspec.sendRequestTimeout(100, 5, "GET", "/exhibitor/exhibitor/v1/explorer/node-data?key=/datastore/" + service + "/" + instance + "/plan-v2-json&_=", null, "str");
@@ -572,7 +572,7 @@ public class DcosSpec extends BaseGSpec {
         CommandExecutionSpec commandexecutionspec = new CommandExecutionSpec(commonspec);
         if (tag.equals("hostname")) {
             if (role.equals("scheduler")) {
-                commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("marathon_answer") + "' | jq .tasks[0].host | sed 's/\"//g'", "0", "elementsConstraint");
+                commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("marathon_answer") + "' | jq .host | sed 's/\"//g'", "0", "elementsConstraint");
             } else {
                 selectElements(role, service, "agent_hostname");
             }
@@ -580,7 +580,7 @@ public class DcosSpec extends BaseGSpec {
             checkConstraintType(role, instance, tag, constraint, value, hostnames);
         } else {
             if (role.equals("scheduler")) {
-                commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("marathon_answer") + "' | jq .tasks[0].slaveId | sed 's/\"//g'", "0", "elementsConstraint");
+                commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("marathon_answer") + "' | jq .slaveId | sed 's/\"//g'", "0", "elementsConstraint");
             } else {
                 selectElements(role, service, "slaveid");
             }
