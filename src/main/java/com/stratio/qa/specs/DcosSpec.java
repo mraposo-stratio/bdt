@@ -501,8 +501,8 @@ public class DcosSpec extends BaseGSpec {
             String[] valor = new String[slavesid.length];
             for (int i = 0; i < slavesid.length; i++) {
                 restspec.sendRequestTimeout(100, 5, "GET", "/mesos/slaves?slave_id=" + slavesid[i], null, "slaves");
-                miscspec.saveElementEnvironment(null, "$", "mesos_answer");
-                commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("mesos_answer") + "' | jq '.slaves[0].attributes." + tag + "' | sed 's/^.\\|.$//g'", "0", "valortag");
+                miscspec.saveElementEnvironment(null, "$.slaves[0].attributes", "mesos_answer");
+                commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("mesos_answer") + "' | jq '." + tag + "' | sed 's/^.\\|.$//g'", "0", "valortag");
                 valor[i] = ThreadProperty.get("valortag");
             }
             checkConstraintType(role, instance, tag, constraint, value, valor);
