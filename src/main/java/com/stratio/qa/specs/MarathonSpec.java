@@ -299,6 +299,7 @@ public class MarathonSpec extends BaseGSpec {
 
         //Start service
         App a = new App();
+        a.setId(appId);
         a.setInstances(inst);
         Result response = this.commonspec.marathonClient.updateApp(appId, a, true);
         assertThat(response.getHttpStatus()).as("Error starting Marathon app: " + response.getHttpStatus()).isEqualTo(200);
@@ -316,7 +317,7 @@ public class MarathonSpec extends BaseGSpec {
         AppResponse app = this.commonspec.marathonClient.getApp(appId);
         assertThat(app.getHttpStatus()).as("No marathon app found by id: " + appId).isEqualTo(200);
 
-        //Modify
+        //Modify envs
         Map<String, Object> envs = app.getApp().getEnv();
         datatable.forEach(entry -> {
                 String name = entry.get(0);
