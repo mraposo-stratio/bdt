@@ -19,9 +19,7 @@ package com.stratio.qa.clients.marathon;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.ning.http.client.Response;
 import com.stratio.qa.clients.BaseClient;
-import com.stratio.qa.models.marathon.AppResponse;
-import com.stratio.qa.models.marathon.AppsResponse;
-import com.stratio.qa.models.marathon.Volume;
+import com.stratio.qa.models.marathon.*;
 import com.stratio.qa.specs.CommonG;
 import com.stratio.qa.utils.ThreadProperty;
 
@@ -56,5 +54,24 @@ public class MarathonApiClient extends BaseClient {
 
         Response response = get(url);
         return map(response, AppResponse.class);
+    }
+
+    public Result updateApp(String appId, App app, boolean force) throws Exception {
+        String url = "https://".concat(ThreadProperty.get("EOS_ACCESS_POINT")).concat(":" + getPort()).concat("/marathon/v2/apps/");
+        url = url.concat(appId);
+        url = url.concat("?force=" + force);
+        String data = mapper.writeValueAsString(app);
+
+        Response response = put(url, data);
+        return map(response, Result.class);
+    }
+
+    public Result updateAppFromString(String appId, String data, boolean force) throws Exception {
+        String url = "https://".concat(ThreadProperty.get("EOS_ACCESS_POINT")).concat(":" + getPort()).concat("/marathon/v2/apps/");
+        url = url.concat(appId);
+        url = url.concat("?force=" + force);
+
+        Response response = put(url, data);
+        return map(response, Result.class);
     }
 }

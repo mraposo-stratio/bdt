@@ -16,7 +16,9 @@
 
 package com.stratio.qa.models.marathon;
 
-public class Result {
+import com.stratio.qa.models.BaseResponse;
+
+public class Result extends BaseResponse {
 
     private String deploymentId;
 

@@ -17,13 +17,14 @@
 package com.stratio.qa.models.marathon;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.stratio.qa.models.BaseResponse;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-public class App extends BaseResponse {
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class App {
 
     public static class Deployment {
         private String id;
@@ -294,5 +295,17 @@ public class App extends BaseResponse {
 
     public Map<String, Integer> getUnreachableStrategy() {
         return unreachableStrategy;
+    }
+
+    public void setInstances(int instances) {
+        this.instances = instances;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public void setEnv(Map<String, Object> env) {
+        this.env = env;
     }
 }

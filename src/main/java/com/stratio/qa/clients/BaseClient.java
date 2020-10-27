@@ -50,6 +50,7 @@ public class BaseClient {
         this.log = common.getLogger();
     }
 
+
     public void setPort(String port) {
         this.port = port;
     }

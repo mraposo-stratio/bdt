@@ -16,23 +16,22 @@
 
 package com.stratio.qa.specs;
 
-import com.stratio.qa.models.cct.deployApi.DeployedApp;
-import com.stratio.qa.models.cct.deployApi.DeployedTask;
-import com.stratio.qa.models.cct.marathonServiceApi.DeployedServiceTask;
 import com.stratio.qa.models.marathon.*;
-import com.stratio.qa.models.mesos.MesosTask;
 import com.stratio.qa.utils.ThreadProperty;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 import cucumber.api.java.en.Then;
 import cucumber.api.java.en.When;
+import io.cucumber.datatable.DataTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 
 public class MarathonSpec extends BaseGSpec {
 
@@ -258,6 +257,104 @@ public class MarathonSpec extends BaseGSpec {
         Assert.assertNotNull(ip, "Error obtaining IP");
         ThreadProperty.set(envVar, ip);
     }
+
+    @When("^I get Marathon descriptor for service id '(.+?)' and save the value in environment variable '(.+?)'$")
+    public void getServiceDescriptor(String appId, String envVar) throws Exception {
+        // Set REST connection
+        commonspec.setCCTConnection(null, null);
+        AppResponse app = this.commonspec.marathonClient.getApp(appId);
+        assertThat(app.getHttpStatus()).as("Error obtaining marathon app descriptor: " + app.getHttpStatus()).isEqualTo(200);
+        ThreadProperty.set(envVar, app.getRawResponse());
+    }
+
+
+    @Then("^I stop Marathon service with id '(.+?)'$")
+    public void stopService(String appId) throws Exception {
+        // Set REST connection
+        commonspec.setCCTConnection(null, null);
+
+        //Check service exists and is running
+        AppResponse app = this.commonspec.marathonClient.getApp(appId);
+        assertThat(app.getHttpStatus()).as("No marathon app found by id: " + appId).isEqualTo(200);
+        assertThat(app.getApp().getInstances()).as("Marathon app: " + appId + " already stopped").isGreaterThan(0);
+
+        //Stop service
+        App a = new App();
+        a.setInstances(0);
+        Result response = this.commonspec.marathonClient.updateApp(appId, a, true);
+        assertThat(response.getHttpStatus()).as("Error updating Marathon app: " + response.getHttpStatus()).isEqualTo(200);
+    }
+
+    @Then("^I start Marathon service with id '(.+?)'( with '(.+?)' instances)?$")
+    public void startService(String appId, String instances) throws Exception {
+        // Set REST connection
+        commonspec.setCCTConnection(null, null);
+
+        //Check service exists and is stopped
+        AppResponse app = this.commonspec.marathonClient.getApp(appId);
+        assertThat(app.getHttpStatus()).as("No marathon app found by id: " + appId).isEqualTo(200);
+        assertThat(app.getApp().getInstances()).as("Marathon app: " + appId + " already stopped").isEqualTo(0);
+
+        int inst = instances == null ? 1 : Integer.parseInt(instances);
+
+        //Start service
+        App a = new App();
+        a.setInstances(inst);
+        Result response = this.commonspec.marathonClient.updateApp(appId, a, true);
+        assertThat(response.getHttpStatus()).as("Error starting Marathon app: " + response.getHttpStatus()).isEqualTo(200);
+    }
+
+
+    @Then("^I update Marathon service with id '(.+?)' with environment variables:$")
+    public void updateAppEnvs(String appId, DataTable modifications) throws Exception {
+        // Set REST connection
+        commonspec.setCCTConnection(null, null);
+
+        List<List<String>> datatable = modifications.asLists(String.class);
+
+        //Check service exists and is running
+        AppResponse app = this.commonspec.marathonClient.getApp(appId);
+        assertThat(app.getHttpStatus()).as("No marathon app found by id: " + appId).isEqualTo(200);
+
+        //Modify
+        Map<String, Object> envs = app.getApp().getEnv();
+        datatable.forEach(entry -> {
+                String name = entry.get(0);
+                String action = entry.get(1);
+                String value = entry.get(2);
+                switch (action) {
+                    case "ADD": envs.put(name, value);
+                                break;
+                    case "DELETE": envs.remove(name);
+                                   break;
+                    case "REPLACE": envs.replace(name, value);
+                                    break;
+                    default: break;
+                }
+            }
+        );
+
+        //Update service
+        App a = new App();
+        a.setEnv(envs);
+        Result response = this.commonspec.marathonClient.updateApp(appId, a, true);
+        assertThat(response.getHttpStatus()).as("Error updating Marathon app: " + response.getHttpStatus()).isEqualTo(200);
+    }
+
+    @Then("^I update Marathon service with id '(.+?)' with parameters defined at '(.+?)' variable$")
+    public void updateAppFromVar(String appId, String envVar) throws Exception {
+        // Set REST connection
+        commonspec.setCCTConnection(null, null);
+
+        //Check service exists and is running
+        AppResponse app = this.commonspec.marathonClient.getApp(appId);
+        assertThat(app.getHttpStatus()).as("No marathon app found by id: " + appId).isEqualTo(200);
+
+        String data = ThreadProperty.get(envVar);
+        Result response = this.commonspec.marathonClient.updateAppFromString(appId, data, true);
+        assertThat(response.getHttpStatus()).as("Error updating Marathon app: " + response.getHttpStatus()).isEqualTo(200);
+    }
+
 
     private String getHostIPFromMarathon(boolean internalIp, String serviceId, int position) throws Exception {
         AppResponse app = this.commonspec.marathonClient.getApp(serviceId);
