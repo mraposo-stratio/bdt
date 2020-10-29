@@ -48,11 +48,18 @@ public class MarathonApiClient extends BaseClient {
         return map(response, AppsResponse.class);
     }
 
-    public AppResponse getApp(String appId) throws Exception {
+    public VersionedAppResponse getApp(String appId) throws Exception {
         String url = "https://".concat(ThreadProperty.get("EOS_ACCESS_POINT")).concat(":" + getPort()).concat("/marathon/v2/apps/");
         url = url.concat(appId);
 
         Response response = get(url);
+        return map(response, VersionedAppResponse.class);
+    }
+
+    public AppResponse addApp(String descriptor) throws Exception {
+        String url = "https://".concat(ThreadProperty.get("EOS_ACCESS_POINT")).concat(":" + getPort()).concat("/marathon/v2/apps");
+
+        Response response = post(url, descriptor);
         return map(response, AppResponse.class);
     }
 

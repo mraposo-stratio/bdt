@@ -16,8 +16,8 @@
 
 package com.stratio.qa.clients.marathon;
 
-import com.stratio.qa.models.marathon.AppResponse;
 import com.stratio.qa.models.marathon.Task;
+import com.stratio.qa.models.marathon.VersionedAppResponse;
 
 import java.util.Collection;
 
@@ -32,7 +32,7 @@ public class MarathonUtils {
     }
 
     public String getTaskId(String taskName, String serviceId) throws Exception {
-        AppResponse app = this.client.getApp(serviceId);
+        VersionedAppResponse app = this.client.getApp(serviceId);
         Collection<Task> tasks = app.getApp().getTasks();
 
         Task task = tasks.stream().filter(t -> t.getId().matches(taskName)).findFirst().orElse(null);

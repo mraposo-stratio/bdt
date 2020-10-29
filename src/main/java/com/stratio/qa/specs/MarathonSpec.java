@@ -28,6 +28,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
 
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -43,7 +45,7 @@ public class MarathonSpec extends BaseGSpec {
 
     @Then("^service with id '(.*)' has '(\\d+)' task[s]? in '(running|finished|failed|staging|starting|killed)' state in Marathon$")
     public void checkNumberOfTasksState(String appId, int numberOfTasks, String state) throws Exception {
-        AppResponse app = this.commonspec.marathonClient.getApp(appId);
+        VersionedAppResponse app = this.commonspec.marathonClient.getApp(appId);
         Collection<Task> tasks = app.getApp().getTasks();
 
         String translatedState = MarathonConstants.statesDict.get(state);
@@ -56,7 +58,7 @@ public class MarathonSpec extends BaseGSpec {
 
     @Then("^service with id '(.*)' has all tasks in '(running|finished|failed|staging|starting|killed)' state in Marathon$")
     public void checkAllTasksState(String appId, String state) throws Exception {
-        AppResponse app = this.commonspec.marathonClient.getApp(appId);
+        VersionedAppResponse app = this.commonspec.marathonClient.getApp(appId);
         Collection<Task> tasks = app.getApp().getTasks();
 
         String translatedState = MarathonConstants.statesDict.get(state);
@@ -69,7 +71,7 @@ public class MarathonSpec extends BaseGSpec {
 
     @Then("^I get environment variable '(.*)' for service with id '(.*)' and save the value in environment variable '(.+?)'$")
     public void saveServiceEnvVariable(String serviceEnvVar, String serviceId, String envVar) throws Exception {
-        AppResponse app = this.commonspec.marathonClient.getApp(serviceId);
+        VersionedAppResponse app = this.commonspec.marathonClient.getApp(serviceId);
         assertThat(app.getApp().getEnv().get(serviceEnvVar))
                 .as("Environment variable " + serviceEnvVar + " not found for service " + serviceId)
                 .isNotNull();
@@ -80,7 +82,7 @@ public class MarathonSpec extends BaseGSpec {
 
     @Then("^I get label '(.*)' for service with id '(.*)' and save the value in environment variable '(.+?)'$")
     public void saveServiceLabel(String label, String serviceId, String envVar) throws Exception {
-        AppResponse app = this.commonspec.marathonClient.getApp(serviceId);
+        VersionedAppResponse app = this.commonspec.marathonClient.getApp(serviceId);
         assertThat(app.getApp().getLabels().get(label))
                 .as("Label " + label + " not found for service " + serviceId)
                 .isNotNull();
@@ -91,7 +93,7 @@ public class MarathonSpec extends BaseGSpec {
 
     @Then("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, service with id '(.*)' has '(\\d+)' task[s]? in '(running|finished|failed|staging|starting|killed)' state in Marathon$")
     public void checkNumberOfTasksStateWithPolling(int timeout, int pause, String appId, int numberOfTasks, String state) throws Exception {
-        AppResponse app;
+        VersionedAppResponse app;
         Collection<Task> tasks;
         int count;
         String translatedState = MarathonConstants.statesDict.get(state);
@@ -119,7 +121,7 @@ public class MarathonSpec extends BaseGSpec {
 
     @Then("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, service with id '(.*)' has all tasks in '(running|finished|failed|staging|starting|killed)' state in Marathon$")
     public void checkAllTasksStateWithPolling(int timeout, int pause, String appId, String state) throws Exception {
-        AppResponse app;
+        VersionedAppResponse app;
         Collection<Task> tasks;
 
         String translatedState = MarathonConstants.statesDict.get(state);
@@ -148,7 +150,7 @@ public class MarathonSpec extends BaseGSpec {
 
     @Then("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, service with id '(.*)' has '(\\d+)' '(healthy|unhealthy|staged|running)' task[s]? in Marathon$")
     public void checkNumberOfTasksHealthinessWithPolling(int timeout, int pause, String appId, int numberOfTasks, String state) throws Exception {
-        AppResponse app;
+        VersionedAppResponse app;
         int count = 0;
 
         int time = 0;
@@ -189,7 +191,7 @@ public class MarathonSpec extends BaseGSpec {
 
     @Then("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, service with id '(.*)' has all tasks '(healthy|unhealthy|unknown)' in Marathon$")
     public void checkAllTasksHealthinessWithPolling(int timeout, int pause, String appId, String state) throws Exception {
-        AppResponse app;
+        VersionedAppResponse app;
         int count = 0;
 
         int time = 0;
@@ -235,7 +237,7 @@ public class MarathonSpec extends BaseGSpec {
 
     @Then("^I get (service|container) port in position '(.*)' for service with id '(.*)' and save the value in environment variable '(.+?)'$")
     public void getServicePort(String serviceOrContainer, String position, String serviceId, String envVar) throws Exception {
-        AppResponse app = this.commonspec.marathonClient.getApp(serviceId);
+        VersionedAppResponse app = this.commonspec.marathonClient.getApp(serviceId);
         Port portAux = app.getApp().getContainer().getPortMappings() != null ?
                 new ArrayList<>(app.getApp().getContainer().getPortMappings()).get(Integer.parseInt(position)) :
                 new ArrayList<>(app.getApp().getContainer().getDocker().getPortMappings()).get(Integer.parseInt(position));
@@ -262,7 +264,7 @@ public class MarathonSpec extends BaseGSpec {
     public void getServiceDescriptor(String appId, String envVar) throws Exception {
         // Set REST connection
         commonspec.setCCTConnection(null, null);
-        AppResponse app = this.commonspec.marathonClient.getApp(appId);
+        VersionedAppResponse app = this.commonspec.marathonClient.getApp(appId);
         assertThat(app.getHttpStatus()).as("Error obtaining marathon app descriptor: " + app.getHttpStatus()).isEqualTo(200);
         ThreadProperty.set(envVar, app.getRawResponse());
     }
@@ -274,7 +276,7 @@ public class MarathonSpec extends BaseGSpec {
         commonspec.setCCTConnection(null, null);
 
         //Check service exists and is running
-        AppResponse app = this.commonspec.marathonClient.getApp(appId);
+        VersionedAppResponse app = this.commonspec.marathonClient.getApp(appId);
         assertThat(app.getHttpStatus()).as("No marathon app found by id: " + appId).isEqualTo(200);
         assertThat(app.getApp().getInstances()).as("Marathon app: " + appId + " already stopped").isGreaterThan(0);
 
@@ -291,7 +293,7 @@ public class MarathonSpec extends BaseGSpec {
         commonspec.setCCTConnection(null, null);
 
         //Check service exists and is stopped
-        AppResponse app = this.commonspec.marathonClient.getApp(appId);
+        VersionedAppResponse app = this.commonspec.marathonClient.getApp(appId);
         assertThat(app.getHttpStatus()).as("No marathon app found by id: " + appId).isEqualTo(200);
         assertThat(app.getApp().getInstances()).as("Marathon app: " + appId + " already stopped").isEqualTo(0);
 
@@ -314,7 +316,7 @@ public class MarathonSpec extends BaseGSpec {
         List<List<String>> datatable = modifications.asLists(String.class);
 
         //Check service exists and is running
-        AppResponse app = this.commonspec.marathonClient.getApp(appId);
+        VersionedAppResponse app = this.commonspec.marathonClient.getApp(appId);
         assertThat(app.getHttpStatus()).as("No marathon app found by id: " + appId).isEqualTo(200);
 
         //Modify envs
@@ -344,11 +346,10 @@ public class MarathonSpec extends BaseGSpec {
 
     @Then("^I update Marathon service with id '(.+?)' with parameters defined at '(.+?)' variable$")
     public void updateAppFromVar(String appId, String envVar) throws Exception {
-        // Set REST connection
         commonspec.setCCTConnection(null, null);
 
         //Check service exists and is running
-        AppResponse app = this.commonspec.marathonClient.getApp(appId);
+        VersionedAppResponse app = this.commonspec.marathonClient.getApp(appId);
         assertThat(app.getHttpStatus()).as("No marathon app found by id: " + appId).isEqualTo(200);
 
         String data = ThreadProperty.get(envVar);
@@ -356,9 +357,28 @@ public class MarathonSpec extends BaseGSpec {
         assertThat(response.getHttpStatus()).as("Error updating Marathon app: " + response.getHttpStatus()).isEqualTo(200);
     }
 
+    @Then("^I add Marathon new service based on file located at '(.+?)'$")
+    public void newAppFromFile(String descriptorPath) throws Exception {
+        commonspec.setCCTConnection(null, null);
+
+        String descriptor = new String(Files.readAllBytes(Paths.get(descriptorPath)));
+        AppResponse response = this.commonspec.marathonClient.addApp(descriptor);
+
+        assertThat(response.getHttpStatus()).as("Error deploying new app in Marathon: " + response.getHttpStatus()).isEqualTo(200);
+    }
+
+    @Then("^I add Marathon new service based on variable '(.+?)'$")
+    public void newAppFromVar(String envVar) throws Exception {
+        commonspec.setCCTConnection(null, null);
+
+        String descriptor = ThreadProperty.get(envVar);
+        AppResponse response = this.commonspec.marathonClient.addApp(descriptor);
+
+        assertThat(response.getHttpStatus()).as("Error deploying new app in Marathon: " + response.getHttpStatus()).isEqualTo(201);
+    }
 
     private String getHostIPFromMarathon(boolean internalIp, String serviceId, int position) throws Exception {
-        AppResponse app = this.commonspec.marathonClient.getApp(serviceId);
+        VersionedAppResponse app = this.commonspec.marathonClient.getApp(serviceId);
         Collection<Task> tasks = app.getApp().getTasks();
         Task task = tasks.stream()
                 .filter(t -> t.getAppId().equals(serviceId))
