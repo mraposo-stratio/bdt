@@ -63,22 +63,31 @@ public class MarathonApiClient extends BaseClient {
         return map(response, AppResponse.class);
     }
 
-    public Result updateApp(String appId, App app, boolean force) throws Exception {
+    public DeploymentResult updateApp(String appId, App app, boolean force) throws Exception {
         String url = "https://".concat(ThreadProperty.get("EOS_ACCESS_POINT")).concat(":" + getPort()).concat("/marathon/v2/apps/");
         url = url.concat(appId);
         url = url.concat("?force=" + force);
         String data = mapper.writeValueAsString(app);
 
         Response response = put(url, data);
-        return map(response, Result.class);
+        return map(response, DeploymentResult.class);
     }
 
-    public Result updateAppFromString(String appId, String data, boolean force) throws Exception {
+    public DeploymentResult updateAppFromString(String appId, String data, boolean force) throws Exception {
         String url = "https://".concat(ThreadProperty.get("EOS_ACCESS_POINT")).concat(":" + getPort()).concat("/marathon/v2/apps/");
         url = url.concat(appId);
         url = url.concat("?force=" + force);
 
         Response response = put(url, data);
-        return map(response, Result.class);
+        return map(response, DeploymentResult.class);
+    }
+
+    public DeploymentResult removeApp(String appId, boolean force) throws Exception {
+        String url = "https://".concat(ThreadProperty.get("EOS_ACCESS_POINT")).concat(":" + getPort()).concat("/marathon/v2/apps/");
+        url = url.concat(appId);
+        url = url.concat("?force=" + force);
+
+        Response response = delete(url);
+        return map(response, DeploymentResult.class);
     }
 }

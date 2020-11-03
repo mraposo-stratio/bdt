@@ -283,7 +283,7 @@ public class MarathonSpec extends BaseGSpec {
         //Stop service
         App a = new App();
         a.setInstances(0);
-        Result response = this.commonspec.marathonClient.updateApp(appId, a, true);
+        DeploymentResult response = this.commonspec.marathonClient.updateApp(appId, a, true);
         assertThat(response.getHttpStatus()).as("Error updating Marathon app: " + response.getHttpStatus()).isEqualTo(200);
     }
 
@@ -303,7 +303,7 @@ public class MarathonSpec extends BaseGSpec {
         App a = new App();
         a.setId(appId);
         a.setInstances(inst);
-        Result response = this.commonspec.marathonClient.updateApp(appId, a, true);
+        DeploymentResult response = this.commonspec.marathonClient.updateApp(appId, a, true);
         assertThat(response.getHttpStatus()).as("Error starting Marathon app: " + response.getHttpStatus()).isEqualTo(200);
     }
 
@@ -340,7 +340,7 @@ public class MarathonSpec extends BaseGSpec {
         //Update service
         App a = new App();
         a.setEnv(envs);
-        Result response = this.commonspec.marathonClient.updateApp(appId, a, true);
+        DeploymentResult response = this.commonspec.marathonClient.updateApp(appId, a, true);
         assertThat(response.getHttpStatus()).as("Error updating Marathon app: " + response.getHttpStatus()).isEqualTo(200);
     }
 
@@ -353,7 +353,7 @@ public class MarathonSpec extends BaseGSpec {
         assertThat(app.getHttpStatus()).as("No marathon app found by id: " + appId).isEqualTo(200);
 
         String data = ThreadProperty.get(envVar);
-        Result response = this.commonspec.marathonClient.updateAppFromString(appId, data, true);
+        DeploymentResult response = this.commonspec.marathonClient.updateAppFromString(appId, data, true);
         assertThat(response.getHttpStatus()).as("Error updating Marathon app: " + response.getHttpStatus()).isEqualTo(200);
     }
 
@@ -364,7 +364,7 @@ public class MarathonSpec extends BaseGSpec {
         String descriptor = new String(Files.readAllBytes(Paths.get(descriptorPath)));
         AppResponse response = this.commonspec.marathonClient.addApp(descriptor);
 
-        assertThat(response.getHttpStatus()).as("Error deploying new app in Marathon: " + response.getHttpStatus()).isEqualTo(200);
+        assertThat(response.getHttpStatus()).as("Error deploying new app in Marathon: " + response.getHttpStatus()).isEqualTo(201);
     }
 
     @Then("^I add new Marathon service based on variable '(.+?)'$")
@@ -376,6 +376,15 @@ public class MarathonSpec extends BaseGSpec {
 
         assertThat(response.getHttpStatus()).as("Error deploying new app in Marathon: " + response.getHttpStatus()).isEqualTo(201);
     }
+
+    @Then("^I remove Marathon service with id '(.+?)'$")
+    public void removeApp(String appId) throws Exception {
+        commonspec.setCCTConnection(null, null);
+
+        DeploymentResult result = this.commonspec.marathonClient.removeApp(appId, true);
+        assertThat(result.getHttpStatus()).as("Error deploying new app in Marathon: " + result.getHttpStatus()).isEqualTo(200);
+    }
+
 
     private String getHostIPFromMarathon(boolean internalIp, String serviceId, int position) throws Exception {
         VersionedAppResponse app = this.commonspec.marathonClient.getApp(serviceId);
