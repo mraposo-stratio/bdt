@@ -357,7 +357,7 @@ public class MarathonSpec extends BaseGSpec {
         assertThat(response.getHttpStatus()).as("Error updating Marathon app: " + response.getHttpStatus()).isEqualTo(200);
     }
 
-    @Then("^I add Marathon new service based on file located at '(.+?)'$")
+    @Then("^I add new Marathon service based on file located at '(.+?)'$")
     public void newAppFromFile(String descriptorPath) throws Exception {
         commonspec.setCCTConnection(null, null);
 
@@ -367,7 +367,7 @@ public class MarathonSpec extends BaseGSpec {
         assertThat(response.getHttpStatus()).as("Error deploying new app in Marathon: " + response.getHttpStatus()).isEqualTo(200);
     }
 
-    @Then("^I add Marathon new service based on variable '(.+?)'$")
+    @Then("^I add new Marathon service based on variable '(.+?)'$")
     public void newAppFromVar(String envVar) throws Exception {
         commonspec.setCCTConnection(null, null);
 
