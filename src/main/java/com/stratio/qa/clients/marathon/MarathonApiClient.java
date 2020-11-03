@@ -90,4 +90,14 @@ public class MarathonApiClient extends BaseClient {
         Response response = delete(url);
         return map(response, DeploymentResult.class);
     }
+
+    public DeploymentResult restartApp(String appId, boolean force) throws Exception {
+        String url = "https://".concat(ThreadProperty.get("EOS_ACCESS_POINT")).concat(":" + getPort()).concat("/marathon/v2/apps/");
+        url = url.concat(appId).concat("/restart");
+        String data = "{\"force\": " + force + "}";
+
+        Response response = post(url, data);
+        return map(response, DeploymentResult.class);
+    }
+
 }

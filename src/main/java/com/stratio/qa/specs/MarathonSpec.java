@@ -270,7 +270,7 @@ public class MarathonSpec extends BaseGSpec {
     }
 
 
-    @Then("^I stop Marathon service with id '(.+?)'$")
+    @When("^I stop Marathon service with id '(.+?)'$")
     public void stopService(String appId) throws Exception {
         // Set REST connection
         commonspec.setCCTConnection(null, null);
@@ -287,7 +287,7 @@ public class MarathonSpec extends BaseGSpec {
         assertThat(response.getHttpStatus()).as("Error updating Marathon app: " + response.getHttpStatus()).isEqualTo(200);
     }
 
-    @Then("^I start Marathon service with id '(.+?)'( with '(.+?)' instances)?$")
+    @When("^I start Marathon service with id '(.+?)'( with '(.+?)' instances)?$")
     public void startService(String appId, String instances) throws Exception {
         // Set REST connection
         commonspec.setCCTConnection(null, null);
@@ -308,7 +308,7 @@ public class MarathonSpec extends BaseGSpec {
     }
 
 
-    @Then("^I update Marathon service with id '(.+?)' with environment variables:$")
+    @When("^I update Marathon service with id '(.+?)' with environment variables:$")
     public void updateAppEnvs(String appId, DataTable modifications) throws Exception {
         // Set REST connection
         commonspec.setCCTConnection(null, null);
@@ -344,7 +344,7 @@ public class MarathonSpec extends BaseGSpec {
         assertThat(response.getHttpStatus()).as("Error updating Marathon app: " + response.getHttpStatus()).isEqualTo(200);
     }
 
-    @Then("^I update Marathon service with id '(.+?)' with parameters defined at '(.+?)' variable$")
+    @When("^I update Marathon service with id '(.+?)' with parameters defined at '(.+?)' variable$")
     public void updateAppFromVar(String appId, String envVar) throws Exception {
         commonspec.setCCTConnection(null, null);
 
@@ -357,7 +357,7 @@ public class MarathonSpec extends BaseGSpec {
         assertThat(response.getHttpStatus()).as("Error updating Marathon app: " + response.getHttpStatus()).isEqualTo(200);
     }
 
-    @Then("^I add new Marathon service based on file located at '(.+?)'$")
+    @When("^I add new Marathon service based on file located at '(.+?)'$")
     public void newAppFromFile(String descriptorPath) throws Exception {
         commonspec.setCCTConnection(null, null);
 
@@ -367,7 +367,7 @@ public class MarathonSpec extends BaseGSpec {
         assertThat(response.getHttpStatus()).as("Error deploying new app in Marathon: " + response.getHttpStatus()).isEqualTo(201);
     }
 
-    @Then("^I add new Marathon service based on variable '(.+?)'$")
+    @When("^I add new Marathon service based on variable '(.+?)'$")
     public void newAppFromVar(String envVar) throws Exception {
         commonspec.setCCTConnection(null, null);
 
@@ -377,14 +377,21 @@ public class MarathonSpec extends BaseGSpec {
         assertThat(response.getHttpStatus()).as("Error deploying new app in Marathon: " + response.getHttpStatus()).isEqualTo(201);
     }
 
-    @Then("^I remove Marathon service with id '(.+?)'$")
+    @When("^I remove Marathon service with id '(.+?)'$")
     public void removeApp(String appId) throws Exception {
         commonspec.setCCTConnection(null, null);
 
         DeploymentResult result = this.commonspec.marathonClient.removeApp(appId, true);
-        assertThat(result.getHttpStatus()).as("Error deploying new app in Marathon: " + result.getHttpStatus()).isEqualTo(200);
+        assertThat(result.getHttpStatus()).as("Error removing app in Marathon: " + result.getHttpStatus()).isEqualTo(200);
     }
 
+    @When("^I restart Marathon service with id '(.+?)'$")
+    public void restartApp(String appId) throws Exception {
+        commonspec.setCCTConnection(null, null);
+
+        DeploymentResult result = this.commonspec.marathonClient.restartApp(appId, true);
+        assertThat(result.getHttpStatus()).as("Error restarting app in Marathon: " + result.getHttpStatus()).isEqualTo(200);
+    }
 
     private String getHostIPFromMarathon(boolean internalIp, String serviceId, int position) throws Exception {
         VersionedAppResponse app = this.commonspec.marathonClient.getApp(serviceId);
