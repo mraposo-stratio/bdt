@@ -276,6 +276,28 @@ public class SeleniumSpec extends BaseGSpec {
     }
 
     /**
+     * Move on an numbered {@code url} previously found element.
+     *
+     * @param index
+     * @throws InterruptedException
+     */
+    @When("^I move to element on index '(\\d+)'$")
+    public void seleniumMoveToElement(Integer index) throws InterruptedException {
+        Actions action = new Actions(commonspec.getDriver());
+        try {
+            assertThat(this.commonspec, scenario, commonspec.getPreviousWebElements()).as("There are less found elements than required")
+                    .hasAtLeast(index);
+            action.moveToElement(commonspec.getPreviousWebElements().getPreviousWebElements().get(index)).perform();
+
+        } catch (AssertionError e) {
+            Thread.sleep(1000);
+            assertThat(this.commonspec, scenario, commonspec.getPreviousWebElements()).as("There are less found elements than required")
+                    .hasAtLeast(index);
+            action.moveToElement(commonspec.getPreviousWebElements().getPreviousWebElements().get(index)).perform();
+        }
+    }
+
+    /**
      * Clear the text on a numbered {@code index} previously found element.
      *
      * @param index

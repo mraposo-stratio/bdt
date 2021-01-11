@@ -2,7 +2,12 @@
 
 Only listing significant user-visible, not internal code cleanups and minor bug fixes.
 
-## 0.20.0 (upcoming)
+## 0.21.0 (upcoming)
+
+* [GS-3051] Fix check certificate creating federated users
+* Kubernetes support
+
+## 0.20.0 (December 17, 2020)
 
 * [CROSSDATA-2740] Fix get service/container port from Marathon API in DCOS 1.8
 * [PQA-40] retrieve ssh user from descriptor
@@ -10,8 +15,22 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 * [SPK-988] Fix runInAllNodes spec
 * [QATM-3515] Improve getHostIp method to obtain different IP's if service has multiple instances
 * [SAAS-2785] New step to get IP (internal and external) from Marathon instead of CCT
+* [ROCK-3086] New CucumberOptions with conditions
+* [FRAM-6100] Add convert yaml to json
+* [GS-2741] get correct timezone adding dates to policies
 * [SPK-1024] Changes in generateMesosLogPath method to read executor logs
 * [PQA-53] Fix modifyData method when first modification is a HEADER
+* [ROCK-3086] Add VaultAnsible decrypt
+* [PQA-55] Add secrets from daedalus to @dcos
+* [PQA-55] Improve LDAP connection
+* [ROCK-3086] Steps to modify, stop and start Marathon apps
+* [QATM-3547] Warning trace added if include tag is wrong
+* [SPK-1075] Logs improvements. Get log by host / secured host of task
+* [SPK-1075] Fix error generating mesos log path
+* [DGPB-5171] Add moveToElement selenium function
+* [PQA-62] Allow forcing @dcos Marathon services refresh
+* [PQA-63]Fixed include tag aspect with params
+* [QATM-3568][QATM-3569] fix password generation through deploy-api and polling api requests
 
 ## 0.19.1 (September 16, 2020)
 

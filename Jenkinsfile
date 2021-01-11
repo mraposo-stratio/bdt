@@ -100,6 +100,7 @@ hose {
         | -DEOS_VAULT_HOST=%%VAULT
         | -DVAULT_TOKEN=stratio
         | -DLDAP_URL=%%LDAP
+        | -DINCLUDE=1
         | -DLDAP_PORT=389""".stripMargin().stripIndent()
     
     DEV = { config ->        

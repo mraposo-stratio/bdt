@@ -504,11 +504,11 @@ public class DcosSpec extends BaseGSpec {
         RestSpec restspec = new RestSpec(commonspec);
         MiscSpec miscspec = new MiscSpec(commonspec);
         if (role.equals("scheduler")) {
-            restspec.sendRequestTimeout(100, 5, "GET", "/service/marathon/v2/apps" + instance, null, "app");
+            restspec.sendRequestTimeout(100, 5, "GET", "/service/marathon/v2/apps" + instance, null, null, "app");
             miscspec.saveElementEnvironment(null, "$.app.tasks[0]", "marathon_answer");
             Assertions.assertThat(ThreadProperty.get("marathon_answer")).overridingErrorMessage("Error while parsing constraints. The instance " + instance + " of the service " + service + " isn't deployed").isNotEmpty();
         } else {
-            restspec.sendRequestTimeout(100, 5, "GET", "/exhibitor/exhibitor/v1/explorer/node-data?key=/datastore/" + service + "/" + instance + "/plan-v2-json&_=", null, "str");
+            restspec.sendRequestTimeout(100, 5, "GET", "/exhibitor/exhibitor/v1/explorer/node-data?key=/datastore/" + service + "/" + instance + "/plan-v2-json&_=", null, null, "str");
             miscspec.saveElementEnvironment(null, "$.str", "exhibitor_answer");
             Assertions.assertThat(ThreadProperty.get("exhibitor_answer")).overridingErrorMessage("Error while parsing constraints. The instance " + instance + " of the service " + service + " isn't deployed").isNotEmpty();
         }
@@ -530,7 +530,7 @@ public class DcosSpec extends BaseGSpec {
             String[] slavesid = ThreadProperty.get("elementsConstraint").split("\n");
             String[] valor = new String[slavesid.length];
             for (int i = 0; i < slavesid.length; i++) {
-                restspec.sendRequestTimeout(100, 5, "GET", "/mesos/slaves?slave_id=" + slavesid[i], null, "slaves");
+                restspec.sendRequestTimeout(100, 5, "GET", "/mesos/slaves?slave_id=" + slavesid[i], null, null, "slaves");
                 miscspec.saveElementEnvironment(null, "$.slaves[0].attributes", "mesos_answer");
                 commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("mesos_answer") + "' | jq '." + tag + "' | sed 's/^.\\|.$//g'", "0", "valortag");
                 valor[i] = ThreadProperty.get("valortag");
@@ -582,7 +582,7 @@ public class DcosSpec extends BaseGSpec {
                 } else {
                     estadoNodo = "RUNNING";
                 }
-                restspec.sendRequestTimeout(timeout, wait, requestType, endPoint, null, dataNodes[i] + "\",\"role\":\"" + role + "\",\"status\":\"" + estadoNodo);
+                restspec.sendRequestTimeout(timeout, wait, requestType, endPoint, null, null, dataNodes[i] + "\",\"role\":\"" + role + "\",\"status\":\"" + estadoNodo);
             }
 
         } else {
@@ -592,7 +592,7 @@ public class DcosSpec extends BaseGSpec {
                 } else {
                     estadoNodo = "RUNNING";
                 }
-                restspec.sendRequestTimeout(timeout, wait, requestType, endPoint, null, dataNodes[i] + "\",\"role\":\"" + role + "\",\"status\":\"" + estadoNodo);
+                restspec.sendRequestTimeout(timeout, wait, requestType, endPoint, null, null, dataNodes[i] + "\",\"role\":\"" + role + "\",\"status\":\"" + estadoNodo);
             }
         }
     }
@@ -1483,9 +1483,9 @@ public class DcosSpec extends BaseGSpec {
      *
      * @throws Exception
      */
-    @Given("^I get services info from marathon")
-    public void getServicesInfoFromMarathon() throws Exception {
-        if (ThreadProperty.get("marathonVariables") == null) {
+    @Given("^I get services info from marathon( forcefully)?")
+    public void getServicesInfoFromMarathon(String force) throws Exception {
+        if (ThreadProperty.get("marathonVariables") == null || force != null) {
             getServicesInfoFromMarathonImpl();
         }
     }

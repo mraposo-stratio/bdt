@@ -39,6 +39,7 @@ import com.ning.http.client.cookie.Cookie;
 import com.stratio.qa.clients.cct.CctMarathonServiceApiClient;
 import com.stratio.qa.clients.cct.ConfigurationApiClient;
 import com.stratio.qa.clients.cct.DeployApiClient;
+import com.stratio.qa.clients.k8s.KubernetesClient;
 import com.stratio.qa.clients.marathon.MarathonApiClient;
 import com.stratio.qa.clients.marathon.MarathonUtils;
 import com.stratio.qa.clients.mesos.MesosApiClient;
@@ -155,6 +156,8 @@ public class CommonG {
     ConfigurationApiClient configurationApiClient;
 
     DeployApiClient deployApiClient;
+
+    KubernetesClient kubernetesClient;
 
     /**
      * Checks if a given string matches a regular expression or contains a string
@@ -681,7 +684,6 @@ public class CommonG {
     }
 
     public void setResponse(String endpoint, Response response) throws IOException {
-
         Integer statusCode = response.getStatusCode();
         String httpResponse = response.getResponseBody();
         List<Cookie> cookies = response.getCookies();
@@ -2624,5 +2626,9 @@ public class CommonG {
         cctMarathonServiceClient = CctMarathonServiceApiClient.getInstance(this);
         configurationApiClient = ConfigurationApiClient.getInstance(this);
         deployApiClient = DeployApiClient.getInstance(this);
+    }
+
+    public void initKubernetesClient() {
+        kubernetesClient = KubernetesClient.getInstance();
     }
 }

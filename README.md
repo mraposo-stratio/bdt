@@ -93,16 +93,36 @@ An AspectJ aspect that includes an scenario before the taged one. It manages par
 
 _Examples:_
 
+Simple example
 ```
     @include(feature:sample.feature,scenario:Not so dummy scenario)
     Scenario: Dummy scenario
           And I wait '${SECS}' seconds
 ```
-
+Predefined param
 ```
-    @include(feature:sample.feature,scenario:Not so dummy scenario,params:param1=1)
+    @include(feature:sample.feature,scenario:Not so dummy scenario,params:[param1:1])
     Scenario: Dummy scenario
           And I wait '${SECS}' seconds
+```
+Environment variable(maven command)
+```
+    @include(feature:sample.feature,scenario:Not so dummy scenario,params:[param1:${test}])
+    Scenario: Dummy scenario
+          And I wait '${SECS}' seconds
+```
+
+Saved variable param
+```
+    @include(feature:sample.feature,scenario:Not so dummy scenario,params:[param1:!{test}])
+    Scenario: Dummy scenario
+          And I wait '${SECS}' seconds
+```
+
+Included Scenario
+```
+     Scenario: Included scenario
+          And I wait '<param1>' seconds
 ```
 
 - **LoopTagAspect**

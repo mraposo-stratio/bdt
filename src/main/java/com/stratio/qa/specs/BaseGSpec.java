@@ -16,6 +16,11 @@
 
 package com.stratio.qa.specs;
 
+import com.stratio.qa.assertions.Assertions;
+
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+
 public class BaseGSpec {
 
     protected CommonG commonspec;
@@ -27,5 +32,24 @@ public class BaseGSpec {
      */
     public CommonG getCommonSpec() {
         return this.commonspec;
+    }
+
+    public void writeInFile(String json, String fileName) throws Exception {
+
+        // Create file (temporary) and set path to be accessible within test
+        File tempDirectory = new File(System.getProperty("user.dir") + "/target/test-classes/");
+        String absolutePathFile = tempDirectory.getAbsolutePath() + "/" + fileName;
+        commonspec.getLogger().debug("Creating file {} in 'target/test-classes'", absolutePathFile);
+        // Note that this Writer will delete the file if it exists
+        Writer out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(absolutePathFile), StandardCharsets.UTF_8));
+        try {
+            out.write(json);
+        } catch (Exception e) {
+            commonspec.getLogger().error("Custom file {} hasn't been created:\n{}", absolutePathFile, e.toString());
+        } finally {
+            out.close();
+        }
+
+        Assertions.assertThat(new File(absolutePathFile).isFile());
     }
 }

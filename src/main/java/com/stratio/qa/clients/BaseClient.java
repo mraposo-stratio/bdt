@@ -138,15 +138,17 @@ public class BaseClient {
 
     protected Response post(String endpoint, String data) throws Exception {
         AsyncHttpClient.BoundRequestBuilder request = this.httpClient.preparePost(endpoint);
+        request = request.setHeader("Content-Type", "application/json; charset=UTF-8");
         request = request.setBody(data);
         request = request.setCookies(commonG.getCookies());
         Response response = request.execute().get();
-        this.log.debug("PUT to " + response.getUri() + ":" + response.getResponseBody());
+        this.log.debug("POST to " + response.getUri() + ":" + response.getResponseBody());
         return response;
     }
 
     protected Response put(String endpoint, String data) throws Exception {
         AsyncHttpClient.BoundRequestBuilder request = this.httpClient.preparePut(endpoint);
+        request = request.setHeader("Content-Type", "application/json; charset=UTF-8");
         request = request.setBody(data);
         request = request.setCookies(commonG.getCookies());
         Response response = request.execute().get();

@@ -13,27 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.stratio.qa.specs;
+package com.stratio.qa.ATests;
 
 import com.stratio.qa.cucumber.testng.CucumberFeatureWrapper;
 import com.stratio.qa.cucumber.testng.PickleEventWrapper;
 import com.stratio.qa.utils.BaseGTest;
 import cucumber.api.CucumberOptions;
 import org.testng.annotations.Test;
-import org.testng.annotations.Factory;
-import com.stratio.qa.data.BrowsersDataProvider;
 
-@CucumberOptions(plugin = "json:target/cucumber.json", features ={
-        "src/test/resources/features/readWebElementTextToVariable.feature",
-//        "src/test/resources/features/assertSeleniumNElementExistsIT.feature",
-//        "src/test/resources/features/assertSeleniumNElementExistsOnTimeOutIT.feature"
+@CucumberOptions(plugin = "json:target/cucumber.json", features = {
+        "src/test/resources/features/include.feature",
 })
-public class SeleniumIT extends BaseGTest {
-
-    @Factory(enabled = false, dataProviderClass = BrowsersDataProvider.class, dataProvider = "availableUniqueBrowsers")
-    public SeleniumIT(String browser) {
-        this.browser = browser;
-    }
+public class IncludeWithParamsIT extends BaseGTest {
 
     @Test(dataProvider = "scenarios")
     public void run(PickleEventWrapper pickleWrapper, CucumberFeatureWrapper featureWrapper) throws Throwable {

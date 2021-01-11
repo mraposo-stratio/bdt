@@ -108,6 +108,19 @@ public class IncludeTagAspectTest {
     }
 
     @Test
+    public void testParseLinesParams() throws IncludeException {
+        String[] originalFeature = new String[]
+                {"Feature: Test",
+                        "@include(feature:includeTemplate.feature,scenario:includeAspect with params, params:[paramtest:${pepe}])",
+                        "Scenario: Scenario with include",
+                        "Given I run 'echo 1' locally"};
+        List<String> lines = new ArrayList<>(Arrays.asList(originalFeature));
+        inctag.parseLines(lines, "src/test/resources/features/");
+        assertThat(lines.get(1)).as("Test that Scenario line was moved to first include line").isEqualTo("Scenario: Scenario with include");
+        assertThat(lines).as("Test that array doesn't contains @include tag").doesNotContain("@include");
+    }
+
+    @Test
     public void testIncludeWithRunOnEnv() throws IncludeException {
         String[] originalFeature = new String[]
                 {"Feature: Test",

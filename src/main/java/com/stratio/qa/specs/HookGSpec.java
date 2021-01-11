@@ -18,6 +18,7 @@ package com.stratio.qa.specs;
 
 import com.ning.http.client.AsyncHttpClient;
 import com.ning.http.client.AsyncHttpClientConfig;
+import com.stratio.qa.clients.k8s.KubernetesClient;
 import com.stratio.qa.exceptions.SuppressableException;
 import com.stratio.qa.utils.StepException;
 import com.stratio.qa.utils.ThreadProperty;
@@ -293,6 +294,11 @@ public class HookGSpec extends BaseGSpec {
         commonspec.initClients();
     }
 
+    @Before(order = ORDER_10)
+    public void startK8sClient() {
+        commonspec.initKubernetesClient();
+    }
+
     @After(order = ORDER_10, value = "@rest or @dcos")
     public void restClientTeardown() throws IOException {
         commonspec.getLogger().debug("Shutting down REST client");
@@ -310,9 +316,17 @@ public class HookGSpec extends BaseGSpec {
         MiscSpec miscspec = new MiscSpec(commonspec);
         dcosSpec.obtainBasicInfoFromWorkspace();
         dcosSpec.obtainBasicInfoFromDescriptor(null);
-        dcosSpec.getServicesInfoFromMarathon();
+        dcosSpec.getServicesInfoFromMarathon(null);
         dcosSpec.obtainBasicInfoFromETCD();
         miscspec.setGosecVariables();
+    }
+
+    @Before(order = ORDER_20, value = "@keos")
+    public void keosSetup() throws Exception {
+        if (ThreadProperty.get("CLUSTER_KUBE_CONFIG_PATH") == null) {
+            commonspec.kubernetesClient.getK8sConfigFromWorkspace(commonspec);
+            commonspec.kubernetesClient.connect(ThreadProperty.get("CLUSTER_KUBE_CONFIG_PATH"));
+        }
     }
 
     @After(order = ORDER_20, value = "@dcos")

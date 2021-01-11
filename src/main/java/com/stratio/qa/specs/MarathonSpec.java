@@ -260,13 +260,18 @@ public class MarathonSpec extends BaseGSpec {
         ThreadProperty.set(envVar, ip);
     }
 
-    @When("^I get Marathon descriptor for service id '(.+?)' and save the value in environment variable '(.+?)'$")
-    public void getServiceDescriptor(String appId, String envVar) throws Exception {
+    @When("^I get Marathon descriptor for service id '(.+?)'( and save the value in environment variable '(.+?)')?( and save it in file '(.*?)')?$")
+    public void getServiceDescriptor(String appId, String envVar, String fileName) throws Exception {
         // Set REST connection
         commonspec.setCCTConnection(null, null);
         VersionedAppResponse app = this.commonspec.marathonClient.getApp(appId);
         assertThat(app.getHttpStatus()).as("Error obtaining marathon app descriptor: " + app.getHttpStatus()).isEqualTo(200);
-        ThreadProperty.set(envVar, app.getRawResponse());
+        if (envVar != null) {
+            ThreadProperty.set(envVar, app.getRawResponse());
+        }
+        if (fileName != null) {
+            writeInFile(app.getRawResponse(), fileName);
+        }
     }
 
 
