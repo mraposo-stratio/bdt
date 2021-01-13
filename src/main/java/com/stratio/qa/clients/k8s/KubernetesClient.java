@@ -21,6 +21,7 @@ import com.stratio.qa.specs.CommandExecutionSpec;
 import com.stratio.qa.specs.CommonG;
 import com.stratio.qa.utils.ThreadProperty;
 import io.fabric8.kubernetes.api.model.*;
+import io.fabric8.kubernetes.api.model.apiextensions.v1beta1.CustomResourceDefinition;
 import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.api.model.apps.DeploymentBuilder;
 import io.fabric8.kubernetes.api.model.apps.ReplicaSet;
@@ -33,6 +34,7 @@ import io.fabric8.kubernetes.client.Config;
 import io.fabric8.kubernetes.client.DefaultKubernetesClient;
 import io.fabric8.kubernetes.client.dsl.ExecListener;
 import io.fabric8.kubernetes.client.dsl.ExecWatch;
+import io.fabric8.kubernetes.client.dsl.base.CustomResourceDefinitionContext;
 import io.fabric8.kubernetes.client.extended.run.RunConfigBuilder;
 import io.fabric8.kubernetes.client.internal.SerializationUtils;
 import okhttp3.Response;
@@ -212,6 +214,27 @@ public class KubernetesClient {
         k8sClient.load(new FileInputStream(file))
                 .inNamespace(namespace)
                 .createOrReplace();
+    }
+
+    /**
+     * kubectl apply -f yamlOrJsonFile.yml
+     * Using a custom resource
+     *
+     * @param file
+     * @param namespace
+     * @throws FileNotFoundException
+     */
+    public void createOrReplaceCustomResource(String file, String namespace, String version, String plural, String kind, String name, String scope, String group) throws IOException {
+        CustomResourceDefinitionContext customResourceDefinitionContext = new CustomResourceDefinitionContext.Builder()
+                .withVersion(version)
+                .withPlural(plural)
+                .withKind(kind)
+                .withName(name)
+                .withScope(scope)
+                .withGroup(group)
+                .build();
+        Map<String, Object> myObject = k8sClient.customResource(customResourceDefinitionContext).load(new FileInputStream(file));
+        k8sClient.customResource(customResourceDefinitionContext).create(namespace, myObject);
     }
 
     /**
@@ -736,6 +759,36 @@ public class KubernetesClient {
         StringBuilder result = new StringBuilder();
         for (RoleBinding roleBinding : k8sClient.rbac().roleBindings().inNamespace(namespace).list().getItems()) {
             result.append(roleBinding.getMetadata().getName()).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+
+    /**
+     * Get customresourcedefinition list
+     *
+     * @return customresourcedefinition list
+     */
+
+    public String getCustomResourceDefinitionList() {
+        StringBuilder result = new StringBuilder();
+        for (CustomResourceDefinition customResourceDefinition : k8sClient.customResourceDefinitions().list().getItems()) {
+            result.append(customResourceDefinition.getMetadata().getName()).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+    /**
+     * Get deployment list in selected namespace
+     *
+     * @param namespace Namespace
+     * @return deployment list
+     */
+
+    public String getDeploymentList(String namespace) {
+        StringBuilder result = new StringBuilder();
+        for (Deployment deployment : k8sClient.apps().deployments().inNamespace(namespace).list().getItems()) {
+            result.append(deployment.getMetadata().getName()).append("\n");
         }
         return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
     }
