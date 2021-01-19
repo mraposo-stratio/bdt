@@ -224,7 +224,7 @@ public class KubernetesClient {
      * @param namespace
      * @throws FileNotFoundException
      */
-    public void createOrReplaceCustomResource(String file, String namespace, String version, String plural, String kind, String name, String scope, String group) throws IOException {
+    public void createOrReplaceCustomResource(String createOrModify, String file, String namespace, String version, String plural, String kind, String name, String scope, String group) throws IOException {
         CustomResourceDefinitionContext customResourceDefinitionContext = new CustomResourceDefinitionContext.Builder()
                 .withVersion(version)
                 .withPlural(plural)
@@ -234,7 +234,11 @@ public class KubernetesClient {
                 .withGroup(group)
                 .build();
         Map<String, Object> myObject = k8sClient.customResource(customResourceDefinitionContext).load(new FileInputStream(file));
-        k8sClient.customResource(customResourceDefinitionContext).create(namespace, myObject);
+        if (createOrModify.equals("create")) {
+            k8sClient.customResource(customResourceDefinitionContext).create(namespace, myObject);
+        } else { //modify
+            k8sClient.customResource(customResourceDefinitionContext).updateStatus(namespace, myObject);
+        }
     }
 
     /**

@@ -262,9 +262,9 @@ public class K8SSpec extends BaseGSpec {
         commonspec.kubernetesClient.createOrReplaceResource(yamlFile, namespace);
     }
 
-    @When("^I apply configuration file located at '(.+?)', in namespace '(.+?)', using the following CustomResourceDefinition: version '(.+?)', plural '(.+?)', kind '(.+?)', name '(.+?)', scope '(.+?)', group '(.+?)'$")
-    public void applyConfigurationCustomResourceDefinition(String yamlFile, String namespace, String version, String plural, String kind, String name, String scope, String group) throws IOException {
-        commonspec.kubernetesClient.createOrReplaceCustomResource(yamlFile, namespace, version, plural, kind, name, scope, group);
+    @When("^I (create|modify) configuration file located at '(.+?)', in namespace '(.+?)', using the following CustomResourceDefinition: version '(.+?)', plural '(.+?)', kind '(.+?)', name '(.+?)', scope '(.+?)', group '(.+?)'$")
+    public void applyConfigurationCustomResourceDefinition(String createOrModify, String yamlFile, String namespace, String version, String plural, String kind, String name, String scope, String group) throws IOException {
+        commonspec.kubernetesClient.createOrReplaceCustomResource(createOrModify, yamlFile, namespace, version, plural, kind, name, scope, group);
     }
 
     @Given("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, log of pod '(.+?)' in namespace '(.+?)' contains '(.+?)'$")
