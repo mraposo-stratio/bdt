@@ -2218,11 +2218,17 @@ public class CommonG {
      * <p>
      * File will be placed on path /target/test-classes
      */
-
     public String convertYamlToJson(String yaml) {
+        return convertYamlStringToJson(retrieveData(yaml, "yaml"));
+    }
+
+    /**
+     * Method to convert one yaml to json file - for operator test
+     */
+    public String convertYamlStringToJson(String yaml) {
         try {
             ObjectMapper yamlReader = new ObjectMapper(new YAMLFactory());
-            Object obj = yamlReader.readValue(retrieveData(yaml, "yaml"), Object.class);
+            Object obj = yamlReader.readValue(yaml, Object.class);
             ObjectMapper jsonWriter = new ObjectMapper();
             return jsonWriter.writerWithDefaultPrettyPrinter().writeValueAsString(obj);
         } catch (IOException ex) {

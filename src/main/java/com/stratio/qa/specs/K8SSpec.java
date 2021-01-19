@@ -16,7 +16,6 @@
 
 package com.stratio.qa.specs;
 
-import com.stratio.qa.clients.k8s.KubernetesClient;
 import com.stratio.qa.utils.ThreadProperty;
 import cucumber.api.java.en.Given;
 import cucumber.api.java.en.When;
@@ -26,6 +25,7 @@ import io.fabric8.kubernetes.api.model.apps.Deployment;
 import org.testng.Assert;
 
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -60,7 +60,7 @@ public class K8SSpec extends BaseGSpec {
         commonspec.kubernetesClient.connect(kubeConfigPath);
     }
 
-    @When("^I get (pods|configmaps|serviceaccounts|replicasets|secrets|clusterroles|clusterrolebindings|statefulsets|roles|rolebindings)( in namespace '(.+?)')? and save it in environment variable '(.+?)'$")
+    @When("^I get (pods|configmaps|serviceaccounts|replicasets|secrets|clusterroles|clusterrolebindings|statefulsets|roles|rolebindings|customresourcedefinitions|deployments)( in namespace '(.+?)')? and save it in environment variable '(.+?)'$")
     public void getList(String type, String namespace, String envVar) {
         String response = null;
         switch (type) {
@@ -84,6 +84,10 @@ public class K8SSpec extends BaseGSpec {
                             break;
             case "rolebindings":    response = commonspec.kubernetesClient.getRoleBindingList(namespace);
                                     break;
+            case "customresourcedefinitions":    response = commonspec.kubernetesClient.getCustomResourceDefinitionList();
+                                                break;
+            case "deployments":    response = commonspec.kubernetesClient.getDeploymentList(namespace);
+                                  break;
             default:
         }
         ThreadProperty.set(envVar, response);
@@ -94,9 +98,10 @@ public class K8SSpec extends BaseGSpec {
         ThreadProperty.set(envVar, commonspec.kubernetesClient.getAllNamespaces());
     }
 
-    @When("^I describe (pod|service|deployment|configmap|replicaset|serviceaccount|secret|clusterrole|clusterrolebinding|statefulset|role|rolebinding) with name '(.+?)'( in namespace '(.+?)')? and save it in environment variable '(.+?)'$")
-    public void describePod(String type, String name, String namespace, String envVar) throws Exception {
+    @When("^I describe (pod|service|deployment|configmap|replicaset|serviceaccount|secret|clusterrole|clusterrolebinding|statefulset|role|rolebinding) with name '(.+?)'( in namespace '(.+?)')?( in '(yaml|json)' format)?( and save it in environment variable '(.*?)')?( and save it in file '(.*?)')?$")
+    public void describePod(String type, String name, String namespace, String format, String envVar, String fileName) throws Exception {
         String describeResponse;
+        format = (format != null) ? format : "yaml";
         switch (type) {
             case "pod": describeResponse = commonspec.kubernetesClient.describePodYaml(name, namespace);
                         break;
@@ -127,8 +132,19 @@ public class K8SSpec extends BaseGSpec {
         if (describeResponse == null) {
             fail("Error obtaining " + type + " information");
         }
+
+        if (format.equals("json")) {
+            describeResponse = commonspec.convertYamlStringToJson(describeResponse);
+        }
+
         getCommonSpec().getLogger().debug(type + " Response: " + describeResponse);
-        ThreadProperty.set(envVar, describeResponse);
+
+        if (envVar != null) {
+            ThreadProperty.set(envVar, describeResponse);
+        }
+        if (fileName != null) {
+            writeInFile(describeResponse, fileName);
+        }
     }
 
     @When("^I run pod with name '(.+?)', in namespace '(.+?)', with image '(.+?)'(, with image pull policy '(.+?)')?, restart policy '(.+?)', service account '(.+?)', command '(.+?)' and the following arguments:$")
@@ -244,6 +260,11 @@ public class K8SSpec extends BaseGSpec {
     @When("^I apply configuration file located at '(.+?)' in namespace '(.+?)'$")
     public void applyConfiguration(String yamlFile, String namespace) throws FileNotFoundException {
         commonspec.kubernetesClient.createOrReplaceResource(yamlFile, namespace);
+    }
+
+    @When("^I apply configuration file located at '(.+?)', in namespace '(.+?)', using the following CustomResourceDefinition: version '(.+?)', plural '(.+?)', kind '(.+?)', name '(.+?)', scope '(.+?)', group '(.+?)'$")
+    public void applyConfigurationCustomResourceDefinition(String yamlFile, String namespace, String version, String plural, String kind, String name, String scope, String group) throws IOException {
+        commonspec.kubernetesClient.createOrReplaceCustomResource(yamlFile, namespace, version, plural, kind, name, scope, group);
     }
 
     @Given("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, log of pod '(.+?)' in namespace '(.+?)' contains '(.+?)'$")
