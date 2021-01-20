@@ -22,14 +22,9 @@ import com.stratio.qa.specs.CommonG;
 import com.stratio.qa.utils.ThreadProperty;
 import io.fabric8.kubernetes.api.model.*;
 import io.fabric8.kubernetes.api.model.apiextensions.v1beta1.CustomResourceDefinition;
-import io.fabric8.kubernetes.api.model.apps.Deployment;
-import io.fabric8.kubernetes.api.model.apps.DeploymentBuilder;
-import io.fabric8.kubernetes.api.model.apps.ReplicaSet;
-import io.fabric8.kubernetes.api.model.apps.StatefulSet;
-import io.fabric8.kubernetes.api.model.rbac.ClusterRole;
-import io.fabric8.kubernetes.api.model.rbac.ClusterRoleBinding;
-import io.fabric8.kubernetes.api.model.rbac.Role;
-import io.fabric8.kubernetes.api.model.rbac.RoleBinding;
+import io.fabric8.kubernetes.api.model.apiextensions.v1beta1.CustomResourceDefinitionList;
+import io.fabric8.kubernetes.api.model.apps.*;
+import io.fabric8.kubernetes.api.model.rbac.*;
 import io.fabric8.kubernetes.client.Config;
 import io.fabric8.kubernetes.client.DefaultKubernetesClient;
 import io.fabric8.kubernetes.client.dsl.ExecListener;
@@ -224,7 +219,7 @@ public class KubernetesClient {
      * @param namespace
      * @throws FileNotFoundException
      */
-    public void createOrReplaceCustomResource(String file, String namespace, String version, String plural, String kind, String name, String scope, String group) throws IOException {
+    public void createOrReplaceCustomResource(String createOrModify, String file, String namespace, String version, String plural, String kind, String name, String scope, String group) throws IOException {
         CustomResourceDefinitionContext customResourceDefinitionContext = new CustomResourceDefinitionContext.Builder()
                 .withVersion(version)
                 .withPlural(plural)
@@ -234,7 +229,36 @@ public class KubernetesClient {
                 .withGroup(group)
                 .build();
         Map<String, Object> myObject = k8sClient.customResource(customResourceDefinitionContext).load(new FileInputStream(file));
-        k8sClient.customResource(customResourceDefinitionContext).create(namespace, myObject);
+        if (createOrModify.equals("create")) {
+            k8sClient.customResource(customResourceDefinitionContext).create(namespace, myObject);
+        } else { //modify
+            k8sClient.customResource(customResourceDefinitionContext).updateStatus(namespace, myObject);
+        }
+    }
+
+    /**
+     * kubectl get pgcluster -n xxxxx
+     * Using a custom resource
+     *
+     * @param namespace
+     */
+    public String getCustomResource(String kind, String namespace, String version, String plural, String name, String scope, String group) throws IOException {
+        CustomResourceDefinitionContext customResourceDefinitionContext = new CustomResourceDefinitionContext.Builder()
+                .withVersion(version)
+                .withPlural(plural)
+                .withKind(kind)
+                .withName(name)
+                .withScope(scope)
+                .withGroup(group)
+                .build();
+
+        Map<String, Object> customResourceMap = k8sClient.customResource(customResourceDefinitionContext).list(namespace);
+        StringBuilder result = new StringBuilder();
+        for (Map.Entry<String, Object> entry : customResourceMap.entrySet()) {
+            result.append(entry.getKey()).append("\n");
+            result.append(entry.getValue()).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
     }
 
     /**
@@ -400,13 +424,12 @@ public class KubernetesClient {
     }
 
     /**
-     * kubectl get pods --selector=version=v1 -o jsonpath='{.items[*].metadata.name}'
+     * private function which return label selector
      *
      * @param selector Label filter (separated by comma)
-     * @param namespace Namespace
-     * @return Pods list filtered
+     * @return LabelSelector
      */
-    public String getPodsFilteredByLabel(String selector, String namespace) {
+    private LabelSelector getLabelSelector (String selector) {
         String[] arraySelector = selector.split(",");
         LabelSelector labelSelector = new LabelSelector();
         Map<String, String> expressions = new HashMap<>();
@@ -416,12 +439,185 @@ public class KubernetesClient {
             expressions.put(labelKey, labelValue);
         }
         labelSelector.setMatchLabels(expressions);
+        return labelSelector;
+    }
+
+    /**
+     * kubectl get pods --selector=version=v1 -o jsonpath='{.items[*].metadata.name}'
+     *
+     * @param selector Label filter (separated by comma)
+     * @param namespace Namespace
+     * @return Pods list filtered
+     */
+    public String getPodsFilteredByLabel(String selector, String namespace) {
+        LabelSelector labelSelector;
+        labelSelector = getLabelSelector(selector);
         StringBuilder result = new StringBuilder();
         PodList podList = namespace != null ?
                 k8sClient.pods().inNamespace(namespace).withLabelSelector(labelSelector).list() :
                 k8sClient.pods().inAnyNamespace().withLabelSelector(labelSelector).list();
         for (Pod pod : podList.getItems()) {
             result.append(pod.getMetadata().getName()).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+     * kubectl get deployments --selector=version=v1 -o jsonpath='{.items[*].metadata.name}'
+     *
+     * @param selector Label filter (separated by comma)
+     * @param namespace Namespace
+     * @return Deployments list filtered
+     */
+    public String getDeploymentsFilteredByLabel(String selector, String namespace) {
+        LabelSelector labelSelector;
+        labelSelector = getLabelSelector(selector);
+        StringBuilder result = new StringBuilder();
+        DeploymentList deploymentList = namespace != null ?
+                k8sClient.apps().deployments().inNamespace(namespace).withLabelSelector(labelSelector).list() :
+                k8sClient.apps().deployments().inAnyNamespace().withLabelSelector(labelSelector).list();
+        for (Deployment deployment : deploymentList.getItems()) {
+            result.append(deployment.getMetadata().getName()).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+     * kubectl get replicasets --selector=version=v1 -o jsonpath='{.items[*].metadata.name}'
+     *
+     * @param selector Label filter (separated by comma)
+     * @param namespace Namespace
+     * @return Replicasets list filtered
+     */
+    public String getReplicaSetsFilteredByLabel(String selector, String namespace) {
+        LabelSelector labelSelector;
+        labelSelector = getLabelSelector(selector);
+        StringBuilder result = new StringBuilder();
+        ReplicaSetList replicasetList = namespace != null ?
+                k8sClient.apps().replicaSets().inNamespace(namespace).withLabelSelector(labelSelector).list() :
+                k8sClient.apps().replicaSets().inAnyNamespace().withLabelSelector(labelSelector).list();
+        for (ReplicaSet replicaset : replicasetList.getItems()) {
+            result.append(replicaset.getMetadata().getName()).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+     * kubectl get services --selector=version=v1 -o jsonpath='{.items[*].metadata.name}'
+     *
+     * @param selector Label filter (separated by comma)
+     * @param namespace Namespace
+     * @return services list filtered
+     */
+    public String getServicesFilteredByLabel(String selector, String namespace) {
+        LabelSelector labelSelector;
+        labelSelector = getLabelSelector(selector);
+        StringBuilder result = new StringBuilder();
+        ServiceList serviceList = namespace != null ?
+                k8sClient.services().inNamespace(namespace).withLabelSelector(labelSelector).list() :
+                k8sClient.services().inAnyNamespace().withLabelSelector(labelSelector).list();
+        for (Service service : serviceList.getItems()) {
+            result.append(service.getMetadata().getName()).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+     * kubectl get statefulsets --selector=version=v1 -o jsonpath='{.items[*].metadata.name}'
+     *
+     * @param selector Label filter (separated by comma)
+     * @param namespace Namespace
+     * @return StateFulSets list filtered
+     */
+    public String getStateFulSetsFilteredByLabel(String selector, String namespace) {
+        LabelSelector labelSelector;
+        labelSelector = getLabelSelector(selector);
+        StringBuilder result = new StringBuilder();
+        StatefulSetList statefulSetList = namespace != null ?
+                k8sClient.apps().statefulSets().inNamespace(namespace).withLabelSelector(labelSelector).list() :
+                k8sClient.apps().statefulSets().inAnyNamespace().withLabelSelector(labelSelector).list();
+        for (StatefulSet statefulSet : statefulSetList.getItems()) {
+            result.append(statefulSet.getMetadata().getName()).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+     * kubectl get configmaps --selector=version=v1 -o jsonpath='{.items[*].metadata.name}'
+     *
+     * @param selector Label filter (separated by comma)
+     * @param namespace Namespace
+     * @return ConfigMaps list filtered
+     */
+    public String getConfigMapsFilteredByLabel(String selector, String namespace) {
+        LabelSelector labelSelector;
+        labelSelector = getLabelSelector(selector);
+        StringBuilder result = new StringBuilder();
+        ConfigMapList configMapList = namespace != null ?
+                k8sClient.configMaps().inNamespace(namespace).withLabelSelector(labelSelector).list() :
+                k8sClient.configMaps().inAnyNamespace().withLabelSelector(labelSelector).list();
+        for (ConfigMap configMap : configMapList.getItems()) {
+            result.append(configMap.getMetadata().getName()).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+     * kubectl get serviceaccounts --selector=version=v1 -o jsonpath='{.items[*].metadata.name}'
+     *
+     * @param selector Label filter (separated by comma)
+     * @param namespace Namespace
+     * @return ServiceAccounts list filtered
+     */
+    public String getServiceAccountsFilteredByLabel(String selector, String namespace) {
+        LabelSelector labelSelector;
+        labelSelector = getLabelSelector(selector);
+        StringBuilder result = new StringBuilder();
+        ServiceAccountList serviceAccountList = namespace != null ?
+                k8sClient.serviceAccounts().inNamespace(namespace).withLabelSelector(labelSelector).list() :
+                k8sClient.serviceAccounts().inAnyNamespace().withLabelSelector(labelSelector).list();
+        for (ServiceAccount serviceAccount : serviceAccountList.getItems()) {
+            result.append(serviceAccount.getMetadata().getName()).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+     * kubectl get roles --selector=version=v1 -o jsonpath='{.items[*].metadata.name}'
+     *
+     * @param selector Label filter (separated by comma)
+     * @param namespace Namespace
+     * @return Roles list filtered
+     */
+    public String getRolesFilteredByLabel(String selector, String namespace) {
+        LabelSelector labelSelector;
+        labelSelector = getLabelSelector(selector);
+        StringBuilder result = new StringBuilder();
+        RoleList roleList = namespace != null ?
+                k8sClient.rbac().roles().inNamespace(namespace).withLabelSelector(labelSelector).list() :
+                k8sClient.rbac().roles().inAnyNamespace().withLabelSelector(labelSelector).list();
+        for (Role role : roleList.getItems()) {
+            result.append(role.getMetadata().getName()).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+     * kubectl get rolebindings --selector=version=v1 -o jsonpath='{.items[*].metadata.name}'
+     *
+     * @param selector Label filter (separated by comma)
+     * @param namespace Namespace
+     * @return Role list filtered
+     */
+    public String getRolesBindingsFilteredByLabel(String selector, String namespace) {
+        LabelSelector labelSelector;
+        labelSelector = getLabelSelector(selector);
+        StringBuilder result = new StringBuilder();
+        RoleBindingList roleBindingList = namespace != null ?
+                k8sClient.rbac().roleBindings().inNamespace(namespace).withLabelSelector(labelSelector).list() :
+                k8sClient.rbac().roleBindings().inAnyNamespace().withLabelSelector(labelSelector).list();
+        for (RoleBinding roleBinding : roleBindingList.getItems()) {
+            result.append(roleBinding.getMetadata().getName()).append("\n");
         }
         return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
     }
@@ -778,6 +974,7 @@ public class KubernetesClient {
         }
         return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
     }
+
     /**
      * Get deployment list in selected namespace
      *
@@ -789,6 +986,21 @@ public class KubernetesClient {
         StringBuilder result = new StringBuilder();
         for (Deployment deployment : k8sClient.apps().deployments().inNamespace(namespace).list().getItems()) {
             result.append(deployment.getMetadata().getName()).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+     * Get service list in selected namespace
+     *
+     * @param namespace Namespace
+     * @return service list
+     */
+
+    public String getServiceList(String namespace) {
+        StringBuilder result = new StringBuilder();
+        for (Service service : k8sClient.services().inNamespace(namespace).list().getItems()) {
+            result.append(service.getMetadata().getName()).append("\n");
         }
         return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
     }
