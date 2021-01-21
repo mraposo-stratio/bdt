@@ -251,12 +251,10 @@ public class KubernetesClient {
                 .withScope(scope)
                 .withGroup(group)
                 .build();
-
         Map<String, Object> customResourceMap = k8sClient.customResource(customResourceDefinitionContext).list(namespace);
         StringBuilder result = new StringBuilder();
-        for (Map.Entry<String, Object> entry : customResourceMap.entrySet()) {
-            result.append(entry.getKey()).append("\n");
-            result.append(entry.getValue()).append("\n");
+        for (Map<String, Object> itemMap : ((List<Map<String, Object>>) customResourceMap.get("items"))) {
+            result.append(((Map<String, Object>)  itemMap.get("metadata")).get("name")).append("\n");
         }
         return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
     }

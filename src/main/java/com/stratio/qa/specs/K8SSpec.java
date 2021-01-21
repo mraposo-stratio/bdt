@@ -292,9 +292,9 @@ public class K8SSpec extends BaseGSpec {
         commonspec.kubernetesClient.createOrReplaceCustomResource(createOrModify, yamlFile, namespace, version, plural, kind, name, scope, group);
     }
 
-    @When("^I get custom resource with kind '(.+?)' in namespace '(.+?)', using the following CustomResourceDefinition: version '(.+?)', plural '(.+?)', name '(.+?)', scope '(.+?)', group '(.+?)'$")
-    public void getCustomResources(String kind, String namespace, String version, String plural, String name, String scope, String group) throws IOException {
-        System.out.println(commonspec.kubernetesClient.getCustomResource(kind, namespace, version, plural, name, scope, group));
+    @When("^I get custom resource with kind '(.+?)' in namespace '(.+?)', using the following CustomResourceDefinition: version '(.+?)', plural '(.+?)', name '(.+?)', scope '(.+?)', group '(.+?)' and save it in environment variable '(.+?)'$")
+    public void getCustomResources(String kind, String namespace, String version, String plural, String name, String scope, String group, String envVar) throws IOException {
+        ThreadProperty.set(envVar, commonspec.kubernetesClient.getCustomResource(kind, namespace, version, plural, name, scope, group));
     }
 
     @Given("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, log of pod '(.+?)' in namespace '(.+?)' contains '(.+?)'$")
