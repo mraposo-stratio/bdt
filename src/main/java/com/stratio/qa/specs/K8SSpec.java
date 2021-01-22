@@ -21,6 +21,7 @@ import cucumber.api.java.en.Given;
 import cucumber.api.java.en.When;
 import io.cucumber.datatable.DataTable;
 import io.fabric8.kubernetes.api.model.Pod;
+import io.fabric8.kubernetes.api.model.apiextensions.v1beta1.CustomResourceDefinition;
 import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.api.model.apps.StatefulSet;
 import org.testng.Assert;
@@ -102,7 +103,7 @@ public class K8SSpec extends BaseGSpec {
     }
 
     @When("^I describe (pod|service|deployment|configmap|replicaset|serviceaccount|secret|clusterrole|clusterrolebinding|statefulset|role|rolebinding) with name '(.+?)'( in namespace '(.+?)')?( in '(yaml|json)' format)?( and save it in environment variable '(.*?)')?( and save it in file '(.*?)')?$")
-    public void describePod(String type, String name, String namespace, String format, String envVar, String fileName) throws Exception {
+    public void describeResource(String type, String name, String namespace, String format, String envVar, String fileName) throws Exception {
         String describeResponse;
         format = (format != null) ? format : "yaml";
         switch (type) {
@@ -145,6 +146,26 @@ public class K8SSpec extends BaseGSpec {
         if (envVar != null) {
             ThreadProperty.set(envVar, describeResponse);
         }
+        if (fileName != null) {
+            writeInFile(describeResponse, fileName);
+        }
+    }
+
+    @When("^I describe custom resource with kind '(.+?)' and name item '(.+?)' in namespace '(.+?)', using the following CustomResourceDefinition: version '(.+?)', plural '(.+?)', name '(.+?)', scope '(.+?)', group '(.+?)'( in '(yaml|json)' format)?( and save it in file '(.*?)')?$")
+    public void describeCustomResource(String kind, String nameItem, String namespace, String version, String plural, String name, String scope, String group, String format, String fileName) throws Exception {
+        String describeResponse;
+        format = (format != null) ? format : "yaml";
+        describeResponse = commonspec.kubernetesClient.describeCustomResourceYaml(kind, nameItem, namespace, version, plural, name, scope, group);
+        if (describeResponse == null) {
+            fail("Error obtaining" + kind + nameItem + " information");
+        }
+
+        if (format.equals("json")) {
+            describeResponse = commonspec.convertYamlStringToJson(describeResponse);
+        }
+
+        getCommonSpec().getLogger().debug(kind + nameItem + " Response: " + describeResponse);
+
         if (fileName != null) {
             writeInFile(describeResponse, fileName);
         }
@@ -252,6 +273,25 @@ public class K8SSpec extends BaseGSpec {
         }
     }
 
+    @When("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, custom resource with kind '(.+?)' and name item '(.+?)' in namespace '(.+?)', using the following CustomResourceDefinition: version '(.+?)', plural '(.+?)', name '(.+?)', scope '(.+?)', group '(.+?)', has '(\\d+)' replicas ready$")
+    public void assertCustomResourceStatus(Integer timeout, Integer wait, String kind, String nameItem, String namespace, String version, String plural, String name, String scope, String group, Integer readyReplicas) throws InterruptedException, IOException {
+        boolean found = false;
+        int i = 0;
+        while (!found && i <= timeout) {
+            try {
+                Assert.assertEquals((commonspec.kubernetesClient.getReadyReplicasCustomResource(kind, nameItem, namespace, version, plural, name, scope, group)).intValue(), readyReplicas.intValue(), "# Ready Replicas");
+                found = true;
+            } catch (AssertionError | Exception e) {
+                getCommonSpec().getLogger().info("Expected replicas ready don't found after " + i + " seconds");
+                if (i >= timeout) {
+                    throw e;
+                }
+                Thread.sleep(wait * 1000);
+            }
+            i += wait;
+        }
+    }
+
 
     @When("^I create deployment with name '(.+?)', in namespace '(.+?)', with image '(.+?)'( and image pull policy '(.+?)')?$")
     public void createDeployment(String name, String namespace, String image, String imagePullPolicy) {
@@ -276,7 +316,7 @@ public class K8SSpec extends BaseGSpec {
 
     @When("^I execute '(.+?)' command in pod with name '(.+?)' in namespace '(.+?)'( and save it in environment variable '(.+?)')?$")
     public void runCommandInPod(String command, String name, String namespace, String envVar) throws InterruptedException {
-        String result = commonspec.kubernetesClient.execCommand(name, namespace, command.split("\n"));
+        String result = commonspec.kubernetesClient.execCommand(name, namespace, command.split("\n| "));
         if (envVar != null) {
             ThreadProperty.set(envVar, result);
         }

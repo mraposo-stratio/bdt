@@ -199,6 +199,33 @@ public class KubernetesClient {
     }
 
     /**
+     * kubectl describe pgcluster
+     *
+     * @param kind kind custom resource (PgCluster)
+     * @param nameItem pgcluster name
+     * @param namespace Namespace (optional)
+     * @return String with pod yaml
+     * @throws JsonProcessingException
+     */
+    public String describeCustomResourceYaml(String kind, String nameItem, String namespace, String version, String plural, String name, String scope, String group) throws JsonProcessingException {
+        CustomResourceDefinitionContext customResourceDefinitionContext = new CustomResourceDefinitionContext.Builder()
+                .withVersion(version)
+                .withPlural(plural)
+                .withKind(kind)
+                .withName(name)
+                .withScope(scope)
+                .withGroup(group)
+                .build();
+        Map<String, Object> customResourceMap = k8sClient.customResource(customResourceDefinitionContext).list(namespace);
+        for (Map<String, Object> itemMap : ((List<Map<String, Object>>) customResourceMap.get("items"))) {
+            if (((Map<String, Object>)  itemMap.get("metadata")).get("name").equals(nameItem)) {
+                return SerializationUtils.dumpAsYaml((HasMetadata) itemMap);
+            }
+        }
+        return null;
+    }
+
+    /**
      * kubectl apply -f yamlOrJsonFile.yml
      *
      * @param file
@@ -257,6 +284,31 @@ public class KubernetesClient {
             result.append(((Map<String, Object>)  itemMap.get("metadata")).get("name")).append("\n");
         }
         return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+     * Using a custom resource
+     *
+     * @param namespace
+     */
+    public Integer getReadyReplicasCustomResource(String kind, String nameItem, String namespace, String version, String plural, String name, String scope, String group) throws IOException {
+        CustomResourceDefinitionContext customResourceDefinitionContext = new CustomResourceDefinitionContext.Builder()
+                .withVersion(version)
+                .withPlural(plural)
+                .withKind(kind)
+                .withName(name)
+                .withScope(scope)
+                .withGroup(group)
+                .build();
+        Map<String, Object> customResourceMap = k8sClient.customResource(customResourceDefinitionContext).list(namespace);
+        StringBuilder result = new StringBuilder();
+        Integer replicas = 0;
+        for (Map<String, Object> itemMap : ((List<Map<String, Object>>) customResourceMap.get("items"))) {
+            if (((Map<String, Object>)  itemMap.get("metadata")).get("name").equals(nameItem)) {
+                return Integer.valueOf(result.append(((Map<String, Object>)  itemMap.get("status")).get("ReadyInstances")).toString().split("/")[0]);
+            }
+        }
+        return replicas;
     }
 
     /**
