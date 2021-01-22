@@ -33,6 +33,7 @@ import io.fabric8.kubernetes.client.dsl.base.CustomResourceDefinitionContext;
 import io.fabric8.kubernetes.client.extended.run.RunConfigBuilder;
 import io.fabric8.kubernetes.client.internal.SerializationUtils;
 import okhttp3.Response;
+import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -204,10 +205,10 @@ public class KubernetesClient {
      * @param kind kind custom resource (PgCluster)
      * @param nameItem pgcluster name
      * @param namespace Namespace (optional)
-     * @return String with pod yaml
+     * @return String with custom resource in json format
      * @throws JsonProcessingException
      */
-    public String describeCustomResourceYaml(String kind, String nameItem, String namespace, String version, String plural, String name, String scope, String group) throws JsonProcessingException {
+    public String describeCustomResourceJson(String kind, String nameItem, String namespace, String version, String plural, String name, String scope, String group) throws JsonProcessingException {
         CustomResourceDefinitionContext customResourceDefinitionContext = new CustomResourceDefinitionContext.Builder()
                 .withVersion(version)
                 .withPlural(plural)
@@ -219,7 +220,7 @@ public class KubernetesClient {
         Map<String, Object> customResourceMap = k8sClient.customResource(customResourceDefinitionContext).list(namespace);
         for (Map<String, Object> itemMap : ((List<Map<String, Object>>) customResourceMap.get("items"))) {
             if (((Map<String, Object>)  itemMap.get("metadata")).get("name").equals(nameItem)) {
-                return SerializationUtils.dumpAsYaml((HasMetadata) itemMap);
+                return new JSONObject(itemMap).toString();
             }
         }
         return null;
@@ -1011,7 +1012,7 @@ public class KubernetesClient {
 
     /**
 
-    /**
+     /**
      * Get customresourcedefinition list
      *
      * @return customresourcedefinition list

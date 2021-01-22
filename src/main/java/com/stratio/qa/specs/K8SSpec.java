@@ -16,12 +16,14 @@
 
 package com.stratio.qa.specs;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.stratio.qa.utils.ThreadProperty;
 import cucumber.api.java.en.Given;
 import cucumber.api.java.en.When;
 import io.cucumber.datatable.DataTable;
 import io.fabric8.kubernetes.api.model.Pod;
-import io.fabric8.kubernetes.api.model.apiextensions.v1beta1.CustomResourceDefinition;
 import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.api.model.apps.StatefulSet;
 import org.testng.Assert;
@@ -155,16 +157,20 @@ public class K8SSpec extends BaseGSpec {
     public void describeCustomResource(String kind, String nameItem, String namespace, String version, String plural, String name, String scope, String group, String format, String fileName) throws Exception {
         String describeResponse;
         format = (format != null) ? format : "yaml";
-        describeResponse = commonspec.kubernetesClient.describeCustomResourceYaml(kind, nameItem, namespace, version, plural, name, scope, group);
+        describeResponse = commonspec.kubernetesClient.describeCustomResourceJson(kind, nameItem, namespace, version, plural, name, scope, group);
         if (describeResponse == null) {
             fail("Error obtaining" + kind + nameItem + " information");
         }
 
-        if (format.equals("json")) {
-            describeResponse = commonspec.convertYamlStringToJson(describeResponse);
+        if (format.equals("yaml")) {
+            String std = describeResponse.replace("\r", "").replace("\n", ""); // make sure we have unix style text regardless of the input
+            // parse JSON
+            JsonNode jsonNodeTree = new ObjectMapper().readTree(std);
+            // save it as YAML
+            describeResponse = new YAMLMapper().writeValueAsString(jsonNodeTree);
         }
 
-        getCommonSpec().getLogger().debug(kind + nameItem + " Response: " + describeResponse);
+        getCommonSpec().getLogger().debug(kind + " " + nameItem + " Response: " + describeResponse);
 
         if (fileName != null) {
             writeInFile(describeResponse, fileName);
