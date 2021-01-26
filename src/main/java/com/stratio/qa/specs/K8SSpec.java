@@ -217,7 +217,11 @@ public class K8SSpec extends BaseGSpec {
         int i = 0;
         while (!found && i <= timeout) {
             try {
-                String[] podsList = commonspec.kubernetesClient.getPodsFilteredByLabel(podSelector, namespace).split("\n");
+                String[] podsList = {};
+                String pods = commonspec.kubernetesClient.getPodsFilteredByLabel(podSelector, namespace);
+                if (!pods.equals("")) {
+                    podsList = pods.split("\n");
+                }
                 Assert.assertEquals(podsList.length, expectedPods.intValue(), "Expected pods");
                 for (String podName : podsList) {
                     Pod pod = commonspec.kubernetesClient.getPod(podName, namespace);
