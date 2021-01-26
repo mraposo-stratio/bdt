@@ -465,6 +465,25 @@ public class KubernetesClient {
     }
 
     /**
+     * kubectl delete pgcluster mypgcluster
+     * Using a custom resource
+     *
+     * @param nameItem
+     * @param namespace
+     */
+    public void deleteCustomResourceItem(String kind, String nameItem, String namespace, String version, String plural, String name, String scope, String group) throws IOException {
+        CustomResourceDefinitionContext customResourceDefinitionContext = new CustomResourceDefinitionContext.Builder()
+                .withVersion(version)
+                .withPlural(plural)
+                .withKind(kind)
+                .withName(name)
+                .withScope(scope)
+                .withGroup(group)
+                .build();
+        k8sClient.customResource(customResourceDefinitionContext).delete(namespace, nameItem);
+    }
+
+    /**
      * kubectl scale --replicas=4 -n namespace deploy/xxx
      *
      * @param deployment deployment to scale

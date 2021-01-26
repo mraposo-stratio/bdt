@@ -376,6 +376,11 @@ public class K8SSpec extends BaseGSpec {
         }
     }
 
+    @When("^I delete custom resource with kind '(.+?)' and name item '(.+?)' in namespace '(.+?)', using the following CustomResourceDefinition: version '(.+?)', plural '(.+?)', name '(.+?)', scope '(.+?)', group '(.+?)'$")
+    public void deleteCustomResource(String kind, String nameItem, String namespace, String version, String plural, String name, String scope, String group) throws Exception {
+        commonspec.kubernetesClient.deleteCustomResourceItem(kind, nameItem, namespace, version, plural, name, scope, group);
+    }
+
     @Given("^I scale deployment '(.+?)' in namespace '(.+?)' to '(\\d+)' instances")
     public void scaleK8s(String deployment, String namespace, Integer instances) {
         commonspec.kubernetesClient.scaleDeployment(deployment, namespace, instances);
