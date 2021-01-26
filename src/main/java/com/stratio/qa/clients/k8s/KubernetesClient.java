@@ -55,7 +55,7 @@ public class KubernetesClient {
 
     private static io.fabric8.kubernetes.client.KubernetesClient k8sClient;
 
-    private static final CountDownLatch execLatch = new CountDownLatch(1);
+    private static CountDownLatch execLatch;
 
     private static final Logger logger = LoggerFactory.getLogger(KubernetesClient.class);
 
@@ -393,6 +393,7 @@ public class KubernetesClient {
     public String execCommand(String pod, String namespace, String[] command) throws InterruptedException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ByteArrayOutputStream error = new ByteArrayOutputStream();
+        execLatch = new CountDownLatch(1);
 
         ExecWatch execWatch = k8sClient.pods().inNamespace(namespace).withName(pod)
                 .writingOutput(out)
