@@ -18,6 +18,7 @@ package com.stratio.qa.specs;
 
 import com.stratio.qa.utils.ThreadProperty;
 import cucumber.api.java.en.Given;
+import cucumber.api.java.en.Then;
 import cucumber.api.java.en.When;
 import io.cucumber.datatable.DataTable;
 import io.fabric8.kubernetes.api.model.Pod;
@@ -313,5 +314,21 @@ public class K8SSpec extends BaseGSpec {
     @When("^I get pods using the following field filter '(.+?)'( in namespace '(.+?)')? and save it in environment variable '(.+?)'$")
     public void getPodsFieldSelector(String selector, String namespace, String envVar) {
         ThreadProperty.set(envVar, commonspec.kubernetesClient.getPodsFilteredByField(selector, namespace));
+    }
+
+    @Given("^I forward containerPort '(\\d+)' in localhostPort '(\\d+)' for (pod|service) '(.+?)'( in namespace '(.+?)')?$")
+    public void setLocalPortForward(Integer containerPort, Integer localhostPort, String type, String name, String namespace) {
+        switch (type) {
+            case "pod":     commonspec.kubernetesClient.setLocalPortForwardPod(namespace, name, containerPort, localhostPort);
+                            break;
+            case "service": commonspec.kubernetesClient.setLocalPortForwardService(namespace, name, containerPort, localhostPort);
+                            break;
+            default:
+        }
+    }
+
+    @Then("^I close port forward$")
+    public void closePortForward() throws IOException {
+        commonspec.kubernetesClient.closePortForward();
     }
 }
