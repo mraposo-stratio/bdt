@@ -105,6 +105,11 @@ public class K8SSpec extends BaseGSpec {
         ThreadProperty.set(envVar, commonspec.kubernetesClient.getAllNamespaces());
     }
 
+    @When("^I check that there is( not)? an event that contains the message '(.+?)' in namespace '(.+?)' (with resource type '(.+?)')? (with resource name '(.+?)')? (with reason '(.+?)')?$")
+    public void checkEventNamespace(String not, String message, String namespace, String type, String name, String reason) {
+        assertThat(commonspec.kubernetesClient.checkEventNamespace(not, namespace, type, name, reason, message)).as("There aren't event that contains the message " + message + " in namespace " + namespace).isTrue();
+    }
+
     @When("^I describe (pod|service|deployment|configmap|replicaset|serviceaccount|secret|clusterrole|clusterrolebinding|statefulset|role|rolebinding) with name '(.+?)'( in namespace '(.+?)')?( in '(yaml|json)' format)?( and save it in environment variable '(.*?)')?( and save it in file '(.*?)')?$")
     public void describeResource(String type, String name, String namespace, String format, String envVar, String fileName) throws Exception {
         String describeResponse;
@@ -154,13 +159,13 @@ public class K8SSpec extends BaseGSpec {
         }
     }
 
-    @When("^I describe custom resource with kind '(.+?)' and name item '(.+?)' in namespace '(.+?)', using the following CustomResourceDefinition: version '(.+?)', plural '(.+?)', name '(.+?)', scope '(.+?)', group '(.+?)'( in '(yaml|json)' format)?( and save it in file '(.*?)')?$")
-    public void describeCustomResource(String kind, String nameItem, String namespace, String version, String plural, String name, String scope, String group, String format, String fileName) throws Exception {
+    @When("^I describe custom resource '(.+?)' with name '(.+?)' in namespace '(.+?)'( in '(yaml|json)' format)?( and save it in file '(.*?)')?$")
+    public void describeCustomResource(String name, String nameItem, String namespace, String format, String fileName) throws Exception {
         String describeResponse;
         format = (format != null) ? format : "yaml";
-        describeResponse = commonspec.kubernetesClient.describeCustomResourceJson(kind, nameItem, namespace, version, plural, name, scope, group);
+        describeResponse = commonspec.kubernetesClient.describeCustomResourceJson(name, nameItem, namespace);
         if (describeResponse == null) {
-            fail("Error obtaining" + kind + nameItem + " information");
+            fail("Error obtaining" + name + nameItem + " information");
         }
 
         if (format.equals("yaml")) {
@@ -171,7 +176,7 @@ public class K8SSpec extends BaseGSpec {
             describeResponse = new YAMLMapper().writeValueAsString(jsonNodeTree);
         }
 
-        getCommonSpec().getLogger().debug(kind + " " + nameItem + " Response: " + describeResponse);
+        getCommonSpec().getLogger().debug(name + " " + nameItem + " Response: " + describeResponse);
 
         if (fileName != null) {
             writeInFile(describeResponse, fileName);
@@ -284,13 +289,13 @@ public class K8SSpec extends BaseGSpec {
         }
     }
 
-    @When("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, custom resource with kind '(.+?)' and name item '(.+?)' in namespace '(.+?)', using the following CustomResourceDefinition: version '(.+?)', plural '(.+?)', name '(.+?)', scope '(.+?)', group '(.+?)', has '(\\d+)' replicas ready$")
-    public void assertCustomResourceStatus(Integer timeout, Integer wait, String kind, String nameItem, String namespace, String version, String plural, String name, String scope, String group, Integer readyReplicas) throws InterruptedException, IOException {
+    @When("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, custom resource '(.+?)' with name '(.+?)' in namespace '(.+?)' has '(\\d+)' replicas ready$")
+    public void assertCustomResourceStatus(Integer timeout, Integer wait, String name, String nameItem, String namespace, Integer readyReplicas) throws InterruptedException, IOException {
         boolean found = false;
         int i = 0;
         while (!found && i <= timeout) {
             try {
-                Assert.assertEquals((commonspec.kubernetesClient.getReadyReplicasCustomResource(kind, nameItem, namespace, version, plural, name, scope, group)).intValue(), readyReplicas.intValue(), "# Ready Replicas");
+                Assert.assertEquals((commonspec.kubernetesClient.getReadyReplicasCustomResource(name, nameItem, namespace)).intValue(), readyReplicas.intValue(), "# Ready Replicas");
                 found = true;
             } catch (AssertionError | Exception e) {
                 getCommonSpec().getLogger().info("Expected replicas ready don't found after " + i + " seconds");
@@ -325,11 +330,14 @@ public class K8SSpec extends BaseGSpec {
         }
     }
 
-    @When("^I execute '(.+?)' command in pod with name '(.+?)' in namespace '(.+?)'( and save it in environment variable '(.+?)')?$")
-    public void runCommandInPod(String command, String name, String namespace, String envVar) throws InterruptedException {
+    @When("^I execute '(.+?)' command in pod with name '(.+?)' in namespace '(.+?)'( and save it in environment variable '(.+?)')?( and save it in file '(.*?)')?$")
+    public void runCommandInPod(String command, String name, String namespace, String envVar, String fileName) throws Exception {
         String result = commonspec.kubernetesClient.execCommand(name, namespace, command.split("\n| "));
         if (envVar != null) {
             ThreadProperty.set(envVar, result);
+        }
+        if (fileName != null) {
+            writeInFile(result, fileName);
         }
     }
 
@@ -338,14 +346,14 @@ public class K8SSpec extends BaseGSpec {
         commonspec.kubernetesClient.createOrReplaceResource(yamlFile, namespace);
     }
 
-    @When("^I (create|modify) configuration file located at '(.+?)', in namespace '(.+?)', using the following CustomResourceDefinition: version '(.+?)', plural '(.+?)', kind '(.+?)', name '(.+?)', scope '(.+?)', group '(.+?)'$")
-    public void applyConfigurationCustomResourceDefinition(String createOrModify, String yamlFile, String namespace, String version, String plural, String kind, String name, String scope, String group) throws IOException {
-        commonspec.kubernetesClient.createOrReplaceCustomResource(createOrModify, yamlFile, namespace, version, plural, kind, name, scope, group);
+    @When("^I apply configuration file located at '(.+?)', in namespace '(.+?)', using the following CustomResourceDefinition: version '(.+?)', plural '(.+?)', kind '(.+?)', name '(.+?)', scope '(.+?)', group '(.+?)'$")
+    public void applyConfigurationCustomResourceDefinition(String yamlFile, String namespace, String version, String plural, String kind, String name, String scope, String group) throws IOException {
+        commonspec.kubernetesClient.createOrReplaceCustomResource(yamlFile, namespace, version, plural, kind, name, scope, group);
     }
 
-    @When("^I get custom resource with kind '(.+?)' in namespace '(.+?)', using the following CustomResourceDefinition: version '(.+?)', plural '(.+?)', name '(.+?)', scope '(.+?)', group '(.+?)' and save it in environment variable '(.+?)'$")
-    public void getCustomResources(String kind, String namespace, String version, String plural, String name, String scope, String group, String envVar) throws IOException {
-        ThreadProperty.set(envVar, commonspec.kubernetesClient.getCustomResource(kind, namespace, version, plural, name, scope, group));
+    @When("^I get custom resource '(.+?)' in namespace '(.+?)' and save it in environment variable '(.+?)'$")
+    public void getCustomResources(String name, String namespace, String envVar) throws IOException {
+        ThreadProperty.set(envVar, commonspec.kubernetesClient.getCustomResource(name, namespace));
     }
 
     @Given("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, log of pod '(.+?)' in namespace '(.+?)' contains '(.+?)'$")
@@ -381,10 +389,11 @@ public class K8SSpec extends BaseGSpec {
         }
     }
 
-    @When("^I delete custom resource with kind '(.+?)' and name item '(.+?)' in namespace '(.+?)', using the following CustomResourceDefinition: version '(.+?)', plural '(.+?)', name '(.+?)', scope '(.+?)', group '(.+?)'$")
-    public void deleteCustomResource(String kind, String nameItem, String namespace, String version, String plural, String name, String scope, String group) throws Exception {
-        commonspec.kubernetesClient.deleteCustomResourceItem(kind, nameItem, namespace, version, plural, name, scope, group);
+    @When("^I delete custom resource '(.+?)' with name '(.+?)' in namespace '(.+?)'$")
+    public void deleteCustomResource(String name, String nameItem, String namespace) throws Exception {
+        commonspec.kubernetesClient.deleteCustomResourceItem(name, nameItem, namespace);
     }
+
 
     @Given("^I scale deployment '(.+?)' in namespace '(.+?)' to '(\\d+)' instances")
     public void scaleK8s(String deployment, String namespace, Integer instances) {

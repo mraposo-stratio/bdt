@@ -31,6 +31,7 @@ import io.fabric8.kubernetes.client.LocalPortForward;
 import io.fabric8.kubernetes.client.dsl.ExecListener;
 import io.fabric8.kubernetes.client.dsl.ExecWatch;
 import io.fabric8.kubernetes.client.dsl.base.CustomResourceDefinitionContext;
+import io.fabric8.kubernetes.client.dsl.internal.RawCustomResourceOperationsImpl;
 import io.fabric8.kubernetes.client.extended.run.RunConfigBuilder;
 import io.fabric8.kubernetes.client.internal.SerializationUtils;
 import okhttp3.Response;
@@ -140,7 +141,22 @@ public class KubernetesClient {
             result.append(namespace.getMetadata().getName()).append("\n");
         }
         return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
 
+    /**
+     * kubectl get events -n namespace
+     * @param namespace
+     */
+    public Boolean checkEventNamespace(String not, String namespace, String type, String name, String reason, String message) {
+        EventList eventList = k8sClient.v1().events().inNamespace(namespace).list();
+        for (Event event : eventList.getItems()) {
+            if ((not == null && event.getMessage().contains(message)) || (not != null && !event.getMessage().contains(message))) {
+                if (!((reason != null && !event.getReason().equals(reason)) || (type != null && !event.getInvolvedObject().getKind().equals(type)) || (name != null && !event.getInvolvedObject().getName().equals(name)))) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -203,27 +219,24 @@ public class KubernetesClient {
     }
 
     /**
-     * kubectl describe pgcluster
+     * kubectl describe pgcluster xxx -n xxxx
      *
-     * @param kind kind custom resource (PgCluster)
+     * @param name customresourcedefinition name (ex:pgclusters.postgres.stratio.com)
      * @param nameItem pgcluster name
-     * @param namespace Namespace (optional)
+     * @param namespace Namespace
      * @return String with custom resource in json format
-     * @throws JsonProcessingException
      */
-    public String describeCustomResourceJson(String kind, String nameItem, String namespace, String version, String plural, String name, String scope, String group) throws JsonProcessingException {
-        CustomResourceDefinitionContext customResourceDefinitionContext = new CustomResourceDefinitionContext.Builder()
-                .withVersion(version)
-                .withPlural(plural)
-                .withKind(kind)
-                .withName(name)
-                .withScope(scope)
-                .withGroup(group)
-                .build();
-        Map<String, Object> customResourceMap = k8sClient.customResource(customResourceDefinitionContext).list(namespace);
-        for (Map<String, Object> itemMap : ((List<Map<String, Object>>) customResourceMap.get("items"))) {
-            if (((Map<String, Object>)  itemMap.get("metadata")).get("name").equals(nameItem)) {
-                return new JSONObject(itemMap).toString();
+    public String describeCustomResourceJson(String name, String nameItem, String namespace) throws JsonProcessingException {
+
+        CustomResourceDefinition crd = k8sClient.customResourceDefinitions().withName(name).get();
+        CustomResourceDefinitionContext crdContext = CustomResourceDefinitionContext.fromCrd(crd);
+
+        Map<String, Object> list = k8sClient.customResource(crdContext).list(namespace);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) list.get("items");
+        for (Map<String, Object> customResource : items) {
+            Map<String, Object> metadata = (Map<String, Object>) customResource.get("metadata");
+            if (metadata.get("name").equals(nameItem)) {
+                return new JSONObject(customResource).toString();
             }
         }
         return null;
@@ -250,7 +263,7 @@ public class KubernetesClient {
      * @param namespace
      * @throws FileNotFoundException
      */
-    public void createOrReplaceCustomResource(String createOrModify, String file, String namespace, String version, String plural, String kind, String name, String scope, String group) throws IOException {
+    public void createOrReplaceCustomResource(String file, String namespace, String version, String plural, String kind, String name, String scope, String group) throws IOException {
         CustomResourceDefinitionContext customResourceDefinitionContext = new CustomResourceDefinitionContext.Builder()
                 .withVersion(version)
                 .withPlural(plural)
@@ -260,32 +273,26 @@ public class KubernetesClient {
                 .withGroup(group)
                 .build();
         Map<String, Object> myObject = k8sClient.customResource(customResourceDefinitionContext).load(new FileInputStream(file));
-        if (createOrModify.equals("create")) {
-            k8sClient.customResource(customResourceDefinitionContext).create(namespace, myObject);
-        } else { //modify
-            k8sClient.customResource(customResourceDefinitionContext).updateStatus(namespace, myObject);
-        }
+        k8sClient.customResource(customResourceDefinitionContext).createOrReplace(namespace, myObject);
     }
 
     /**
      * kubectl get pgcluster -n xxxxx
      * Using a custom resource
      *
+     * @param name customresourcedefinition name (ex:pgclusters.postgres.stratio.com)
      * @param namespace
      */
-    public String getCustomResource(String kind, String namespace, String version, String plural, String name, String scope, String group) throws IOException {
-        CustomResourceDefinitionContext customResourceDefinitionContext = new CustomResourceDefinitionContext.Builder()
-                .withVersion(version)
-                .withPlural(plural)
-                .withKind(kind)
-                .withName(name)
-                .withScope(scope)
-                .withGroup(group)
-                .build();
-        Map<String, Object> customResourceMap = k8sClient.customResource(customResourceDefinitionContext).list(namespace);
+    public String getCustomResource(String name, String namespace) throws IOException {
+        CustomResourceDefinition crd = k8sClient.customResourceDefinitions().withName(name).get();
+        CustomResourceDefinitionContext crdContext = CustomResourceDefinitionContext.fromCrd(crd);
+
+        Map<String, Object> list = k8sClient.customResource(crdContext).list(namespace);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) list.get("items");
         StringBuilder result = new StringBuilder();
-        for (Map<String, Object> itemMap : ((List<Map<String, Object>>) customResourceMap.get("items"))) {
-            result.append(((Map<String, Object>)  itemMap.get("metadata")).get("name")).append("\n");
+        for (Map<String, Object> customResource : items) {
+            Map<String, Object> metadata = (Map<String, Object>) customResource.get("metadata");
+            result.append(metadata.get("name")).append("\n");
         }
         return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
     }
@@ -293,23 +300,24 @@ public class KubernetesClient {
     /**
      * Using a custom resource
      *
-     * @param namespace
+     * @param name customresourcedefinition name (ex:pgclusters.postgres.stratio.com)
+     * @param nameItem pgcluster name
+     * @param namespace Namespace
+     * @return replicas number is ready
      */
-    public Integer getReadyReplicasCustomResource(String kind, String nameItem, String namespace, String version, String plural, String name, String scope, String group) throws IOException {
-        CustomResourceDefinitionContext customResourceDefinitionContext = new CustomResourceDefinitionContext.Builder()
-                .withVersion(version)
-                .withPlural(plural)
-                .withKind(kind)
-                .withName(name)
-                .withScope(scope)
-                .withGroup(group)
-                .build();
-        Map<String, Object> customResourceMap = k8sClient.customResource(customResourceDefinitionContext).list(namespace);
+    public Integer getReadyReplicasCustomResource(String name, String nameItem, String namespace) throws IOException {
+        CustomResourceDefinition crd = k8sClient.customResourceDefinitions().withName(name).get();
+        CustomResourceDefinitionContext crdContext = CustomResourceDefinitionContext.fromCrd(crd);
+
+        Map<String, Object> list = k8sClient.customResource(crdContext).list(namespace);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) list.get("items");
         StringBuilder result = new StringBuilder();
         Integer replicas = 0;
-        for (Map<String, Object> itemMap : ((List<Map<String, Object>>) customResourceMap.get("items"))) {
-            if (((Map<String, Object>)  itemMap.get("metadata")).get("name").equals(nameItem)) {
-                return Integer.valueOf(result.append(((Map<String, Object>)  itemMap.get("status")).get("ReadyInstances")).toString().split("/")[0]);
+        for (Map<String, Object> customResource : items) {
+            Map<String, Object> metadata = (Map<String, Object>) customResource.get("metadata");
+            Map<String, Object> status = (Map<String, Object>) customResource.get("status");
+            if (metadata.get("name").equals(nameItem)) {
+                return Integer.valueOf(result.append(status.get("ReadyInstances")).toString().split("/")[0]);
             }
         }
         return replicas;
@@ -472,19 +480,14 @@ public class KubernetesClient {
      * kubectl delete pgcluster mypgcluster
      * Using a custom resource
      *
-     * @param nameItem
-     * @param namespace
+     * @param name customresourcedefinition name (ex:pgclusters.postgres.stratio.com)
+     * @param nameItem pgcluster name
+     * @param namespace Namespace
      */
-    public void deleteCustomResourceItem(String kind, String nameItem, String namespace, String version, String plural, String name, String scope, String group) throws IOException {
-        CustomResourceDefinitionContext customResourceDefinitionContext = new CustomResourceDefinitionContext.Builder()
-                .withVersion(version)
-                .withPlural(plural)
-                .withKind(kind)
-                .withName(name)
-                .withScope(scope)
-                .withGroup(group)
-                .build();
-        k8sClient.customResource(customResourceDefinitionContext).delete(namespace, nameItem);
+    public void deleteCustomResourceItem(String name, String nameItem, String namespace) throws IOException {
+        CustomResourceDefinition crd = k8sClient.customResourceDefinitions().withName(name).get();
+        CustomResourceDefinitionContext crdContext = CustomResourceDefinitionContext.fromCrd(crd);
+        k8sClient.customResource(crdContext).delete(namespace, nameItem);
     }
 
     /**
