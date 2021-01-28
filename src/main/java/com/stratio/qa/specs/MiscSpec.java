@@ -21,14 +21,22 @@ import cucumber.api.java.en.Given;
 import cucumber.api.java.en.Then;
 import cucumber.api.java.en.When;
 import io.cucumber.datatable.DataTable;
+import io.jsonwebtoken.Header;
+import io.jsonwebtoken.JwtBuilder;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
 import org.apache.commons.lang.time.DateUtils;
 import org.assertj.core.api.Assertions;
 import org.hjson.JsonArray;
 import org.hjson.JsonValue;
 
+import javax.crypto.spec.SecretKeySpec;
+import javax.xml.bind.DatatypeConverter;
 import java.lang.reflect.InvocationTargetException;
+import java.security.Key;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -416,6 +424,55 @@ public class MiscSpec extends BaseGSpec {
         dateFormat.setTimeZone(TimeZone.getTimeZone("Europe/Madrid"));
         ThreadProperty.set(envVar, dateFormat.format(targetTime));
         commonspec.getLogger().debug("Date adding {} minutes : {}", addMinuteTime, dateFormat.format(targetTime));
+    }
+
+    /**
+     * Get JWT for the provided data
+     *
+     * @param tenant    : environment tenant
+     * @param userId    : login userId
+     * @param mail      : users email
+     * @param groups    : List of groups
+     * @param issuer    : Issuer to sign the token
+     * @param secretKey : Vault secretKey to sign the token
+     * @param envVar    : local variable where JWT will be saved
+     */
+    @Given("^I get JWT for tenant:'(.+?)',userId:'(.+?)',mail:'(.+?)',groups:'(.+?)' with issuer:'(.+?)' and secretKey:'(.+?)' and save the value in environment variable '(.+?)'$")
+    public void getJwtFromData(String tenant, String userId, String mail, String groups, String issuer, String secretKey, String envVar) {
+        String[] myArray = groups.split(",");
+        List<String> myList = new ArrayList<>();
+        for (String str : myArray) {
+            myList.add(str);
+        }
+
+        //Set JWT start and end dates
+        Date startDate = new GregorianCalendar(2021, Calendar.JANUARY, 01).getTime();
+        Date endDate = new GregorianCalendar(2099, Calendar.JANUARY, 01).getTime();
+
+        //The JWT signature algorithm we will be using to sign the token
+        SignatureAlgorithm signatureAlgorithm = SignatureAlgorithm.HS256;
+
+        //secretKey should be given as Base64URL encoded
+        Key signingKey = new SecretKeySpec(secretKey.getBytes(), signatureAlgorithm.getJcaName());
+
+        try {
+            JwtBuilder builder = Jwts.builder().setNotBefore(startDate)
+                    .claim("cn", userId)
+                    .claim("tenant", tenant)
+                    .claim("groups", myList)
+                    .claim("mail", mail)
+                    .setExpiration(endDate)
+                    .setIssuer(issuer)
+                    .claim("uid", userId)
+                    .signWith(signatureAlgorithm, signingKey);
+
+            //Save token on env variable
+            ThreadProperty.set(envVar, builder.compact());
+            commonspec.getLogger().debug("Your JWT: {}", builder.compact());
+        } catch (AssertionError e) {
+            commonspec.getLogger().error("Error creating JWT, check data");
+            throw e;
+        }
     }
 
 }

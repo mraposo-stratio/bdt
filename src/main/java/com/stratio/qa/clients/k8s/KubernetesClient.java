@@ -27,6 +27,7 @@ import io.fabric8.kubernetes.api.model.apps.*;
 import io.fabric8.kubernetes.api.model.rbac.*;
 import io.fabric8.kubernetes.client.Config;
 import io.fabric8.kubernetes.client.DefaultKubernetesClient;
+import io.fabric8.kubernetes.client.LocalPortForward;
 import io.fabric8.kubernetes.client.dsl.ExecListener;
 import io.fabric8.kubernetes.client.dsl.ExecWatch;
 import io.fabric8.kubernetes.client.dsl.base.CustomResourceDefinitionContext;
@@ -55,7 +56,9 @@ public class KubernetesClient {
 
     private static io.fabric8.kubernetes.client.KubernetesClient k8sClient;
 
-    private static CountDownLatch execLatch;
+    private static LocalPortForward localPortForward;
+
+    private static final CountDownLatch execLatch = new CountDownLatch(1);
 
     private static final Logger logger = LoggerFactory.getLogger(KubernetesClient.class);
 
@@ -1037,7 +1040,6 @@ public class KubernetesClient {
      *
      * @return customresourcedefinition list
      */
-
     public String getCustomResourceDefinitionList() {
         StringBuilder result = new StringBuilder();
         for (CustomResourceDefinition customResourceDefinition : k8sClient.customResourceDefinitions().list().getItems()) {
@@ -1052,7 +1054,6 @@ public class KubernetesClient {
      * @param namespace Namespace
      * @return deployment list
      */
-
     public String getDeploymentList(String namespace) {
         StringBuilder result = new StringBuilder();
         for (Deployment deployment : k8sClient.apps().deployments().inNamespace(namespace).list().getItems()) {
@@ -1062,6 +1063,7 @@ public class KubernetesClient {
     }
 
     /**
+
      * Get service list in selected namespace
      *
      * @param namespace Namespace
@@ -1074,6 +1076,36 @@ public class KubernetesClient {
             result.append(service.getMetadata().getName()).append("\n");
         }
         return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+
+     /**
+     * Set local port forward for a service
+     *
+     * @param namespace Namespace
+     * @param name Name
+     * @param containerPort container port
+     * @param localHostPort local host port
+     */
+    public void setLocalPortForwardService(String namespace, String name, int containerPort, int localHostPort) {
+        localPortForward = k8sClient.services().inNamespace(namespace).withName(name).portForward(containerPort, localHostPort);
+    }
+
+    /**
+     * Set local port forward for a pod
+     *
+     * @param namespace Namespace
+     * @param name Name
+     * @param containerPort container port
+     * @param localHostPort local host port
+     */
+    public void setLocalPortForwardPod(String namespace, String name, int containerPort, int localHostPort) {
+        localPortForward = k8sClient.pods().inNamespace(namespace).withName(name).portForward(containerPort, localHostPort);
+    }
+
+    public void closePortForward() throws IOException {
+        if (localPortForward != null && localPortForward.isAlive()) {
+            localPortForward.close();
+        }
+        localPortForward = null;
     }
 
     /**
