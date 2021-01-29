@@ -59,7 +59,7 @@ public class KubernetesClient {
 
     private static LocalPortForward localPortForward;
 
-    private static final CountDownLatch execLatch = new CountDownLatch(1);
+    private static CountDownLatch execLatch = new CountDownLatch(1);
 
     private static final Logger logger = LoggerFactory.getLogger(KubernetesClient.class);
 
