@@ -59,7 +59,7 @@ public class KubernetesClient {
 
     private static LocalPortForward localPortForward;
 
-    private static CountDownLatch execLatch = new CountDownLatch(1);
+    private static final CountDownLatch execLatch = new CountDownLatch(1);
 
     private static final Logger logger = LoggerFactory.getLogger(KubernetesClient.class);
 
@@ -1066,7 +1066,6 @@ public class KubernetesClient {
     }
 
     /**
-
      * Get service list in selected namespace
      *
      * @param namespace Namespace
