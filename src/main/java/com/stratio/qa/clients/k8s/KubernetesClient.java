@@ -59,7 +59,7 @@ public class KubernetesClient {
 
     private static LocalPortForward localPortForward;
 
-    private static final CountDownLatch execLatch = new CountDownLatch(1);
+    private static CountDownLatch execLatch = new CountDownLatch(1);
 
     private static final Logger logger = LoggerFactory.getLogger(KubernetesClient.class);
 
@@ -1079,6 +1079,7 @@ public class KubernetesClient {
             result.append(service.getMetadata().getName()).append("\n");
         }
         return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
 
      /**
      * Set local port forward for a service
@@ -1088,6 +1089,7 @@ public class KubernetesClient {
      * @param containerPort container port
      * @param localHostPort local host port
      */
+
     public void setLocalPortForwardService(String namespace, String name, int containerPort, int localHostPort) {
         localPortForward = k8sClient.services().inNamespace(namespace).withName(name).portForward(containerPort, localHostPort);
     }
