@@ -22,22 +22,20 @@ import com.stratio.qa.specs.CommonG;
 import com.stratio.qa.utils.ThreadProperty;
 import io.fabric8.kubernetes.api.model.*;
 import io.fabric8.kubernetes.api.model.apiextensions.v1beta1.CustomResourceDefinition;
-import io.fabric8.kubernetes.api.model.apps.Deployment;
-import io.fabric8.kubernetes.api.model.apps.DeploymentBuilder;
-import io.fabric8.kubernetes.api.model.apps.ReplicaSet;
-import io.fabric8.kubernetes.api.model.apps.StatefulSet;
-import io.fabric8.kubernetes.api.model.rbac.ClusterRole;
-import io.fabric8.kubernetes.api.model.rbac.ClusterRoleBinding;
-import io.fabric8.kubernetes.api.model.rbac.Role;
-import io.fabric8.kubernetes.api.model.rbac.RoleBinding;
+import io.fabric8.kubernetes.api.model.apiextensions.v1beta1.CustomResourceDefinitionList;
+import io.fabric8.kubernetes.api.model.apps.*;
+import io.fabric8.kubernetes.api.model.rbac.*;
 import io.fabric8.kubernetes.client.Config;
 import io.fabric8.kubernetes.client.DefaultKubernetesClient;
+import io.fabric8.kubernetes.client.LocalPortForward;
 import io.fabric8.kubernetes.client.dsl.ExecListener;
 import io.fabric8.kubernetes.client.dsl.ExecWatch;
 import io.fabric8.kubernetes.client.dsl.base.CustomResourceDefinitionContext;
+import io.fabric8.kubernetes.client.dsl.internal.RawCustomResourceOperationsImpl;
 import io.fabric8.kubernetes.client.extended.run.RunConfigBuilder;
 import io.fabric8.kubernetes.client.internal.SerializationUtils;
 import okhttp3.Response;
+import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,7 +57,9 @@ public class KubernetesClient {
 
     private static io.fabric8.kubernetes.client.KubernetesClient k8sClient;
 
-    private static final CountDownLatch execLatch = new CountDownLatch(1);
+    private static LocalPortForward localPortForward;
+
+    private static CountDownLatch execLatch = new CountDownLatch(1);
 
     private static final Logger logger = LoggerFactory.getLogger(KubernetesClient.class);
 
@@ -141,7 +141,22 @@ public class KubernetesClient {
             result.append(namespace.getMetadata().getName()).append("\n");
         }
         return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
 
+    /**
+     * kubectl get events -n namespace
+     * @param namespace
+     */
+    public Boolean checkEventNamespace(String not, String namespace, String type, String name, String reason, String message) {
+        EventList eventList = k8sClient.v1().events().inNamespace(namespace).list();
+        for (Event event : eventList.getItems()) {
+            if ((not == null && event.getMessage().contains(message)) || (not != null && !event.getMessage().contains(message))) {
+                if (!((reason != null && !event.getReason().equals(reason)) || (type != null && !event.getInvolvedObject().getKind().equals(type)) || (name != null && !event.getInvolvedObject().getName().equals(name)))) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -204,6 +219,30 @@ public class KubernetesClient {
     }
 
     /**
+     * kubectl describe pgcluster xxx -n xxxx
+     *
+     * @param name customresourcedefinition name (ex:pgclusters.postgres.stratio.com)
+     * @param nameItem pgcluster name
+     * @param namespace Namespace
+     * @return String with custom resource in json format
+     */
+    public String describeCustomResourceJson(String name, String nameItem, String namespace) throws JsonProcessingException {
+
+        CustomResourceDefinition crd = k8sClient.customResourceDefinitions().withName(name).get();
+        CustomResourceDefinitionContext crdContext = CustomResourceDefinitionContext.fromCrd(crd);
+
+        Map<String, Object> list = k8sClient.customResource(crdContext).list(namespace);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) list.get("items");
+        for (Map<String, Object> customResource : items) {
+            Map<String, Object> metadata = (Map<String, Object>) customResource.get("metadata");
+            if (metadata.get("name").equals(nameItem)) {
+                return new JSONObject(customResource).toString();
+            }
+        }
+        return null;
+    }
+
+    /**
      * kubectl apply -f yamlOrJsonFile.yml
      *
      * @param file
@@ -234,7 +273,54 @@ public class KubernetesClient {
                 .withGroup(group)
                 .build();
         Map<String, Object> myObject = k8sClient.customResource(customResourceDefinitionContext).load(new FileInputStream(file));
-        k8sClient.customResource(customResourceDefinitionContext).create(namespace, myObject);
+        k8sClient.customResource(customResourceDefinitionContext).createOrReplace(namespace, myObject);
+    }
+
+    /**
+     * kubectl get pgcluster -n xxxxx
+     * Using a custom resource
+     *
+     * @param name customresourcedefinition name (ex:pgclusters.postgres.stratio.com)
+     * @param namespace
+     */
+    public String getCustomResource(String name, String namespace) throws IOException {
+        CustomResourceDefinition crd = k8sClient.customResourceDefinitions().withName(name).get();
+        CustomResourceDefinitionContext crdContext = CustomResourceDefinitionContext.fromCrd(crd);
+
+        Map<String, Object> list = k8sClient.customResource(crdContext).list(namespace);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) list.get("items");
+        StringBuilder result = new StringBuilder();
+        for (Map<String, Object> customResource : items) {
+            Map<String, Object> metadata = (Map<String, Object>) customResource.get("metadata");
+            result.append(metadata.get("name")).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+     * Using a custom resource
+     *
+     * @param name customresourcedefinition name (ex:pgclusters.postgres.stratio.com)
+     * @param nameItem pgcluster name
+     * @param namespace Namespace
+     * @return replicas number is ready
+     */
+    public Integer getReadyReplicasCustomResource(String name, String nameItem, String namespace) throws IOException {
+        CustomResourceDefinition crd = k8sClient.customResourceDefinitions().withName(name).get();
+        CustomResourceDefinitionContext crdContext = CustomResourceDefinitionContext.fromCrd(crd);
+
+        Map<String, Object> list = k8sClient.customResource(crdContext).list(namespace);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) list.get("items");
+        StringBuilder result = new StringBuilder();
+        Integer replicas = 0;
+        for (Map<String, Object> customResource : items) {
+            Map<String, Object> metadata = (Map<String, Object>) customResource.get("metadata");
+            Map<String, Object> status = (Map<String, Object>) customResource.get("status");
+            if (metadata.get("name").equals(nameItem)) {
+                return Integer.valueOf(result.append(status.get("ReadyInstances")).toString().split("/")[0]);
+            }
+        }
+        return replicas;
     }
 
     /**
@@ -318,6 +404,7 @@ public class KubernetesClient {
     public String execCommand(String pod, String namespace, String[] command) throws InterruptedException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ByteArrayOutputStream error = new ByteArrayOutputStream();
+        execLatch = new CountDownLatch(1);
 
         ExecWatch execWatch = k8sClient.pods().inNamespace(namespace).withName(pod)
                 .writingOutput(out)
@@ -390,6 +477,20 @@ public class KubernetesClient {
     }
 
     /**
+     * kubectl delete pgcluster mypgcluster
+     * Using a custom resource
+     *
+     * @param name customresourcedefinition name (ex:pgclusters.postgres.stratio.com)
+     * @param nameItem pgcluster name
+     * @param namespace Namespace
+     */
+    public void deleteCustomResourceItem(String name, String nameItem, String namespace) throws IOException {
+        CustomResourceDefinition crd = k8sClient.customResourceDefinitions().withName(name).get();
+        CustomResourceDefinitionContext crdContext = CustomResourceDefinitionContext.fromCrd(crd);
+        k8sClient.customResource(crdContext).delete(namespace, nameItem);
+    }
+
+    /**
      * kubectl scale --replicas=4 -n namespace deploy/xxx
      *
      * @param deployment deployment to scale
@@ -400,13 +501,12 @@ public class KubernetesClient {
     }
 
     /**
-     * kubectl get pods --selector=version=v1 -o jsonpath='{.items[*].metadata.name}'
+     * private function which return label selector
      *
      * @param selector Label filter (separated by comma)
-     * @param namespace Namespace
-     * @return Pods list filtered
+     * @return LabelSelector
      */
-    public String getPodsFilteredByLabel(String selector, String namespace) {
+    private LabelSelector getLabelSelector (String selector) {
         String[] arraySelector = selector.split(",");
         LabelSelector labelSelector = new LabelSelector();
         Map<String, String> expressions = new HashMap<>();
@@ -416,12 +516,185 @@ public class KubernetesClient {
             expressions.put(labelKey, labelValue);
         }
         labelSelector.setMatchLabels(expressions);
+        return labelSelector;
+    }
+
+    /**
+     * kubectl get pods --selector=version=v1 -o jsonpath='{.items[*].metadata.name}'
+     *
+     * @param selector Label filter (separated by comma)
+     * @param namespace Namespace
+     * @return Pods list filtered
+     */
+    public String getPodsFilteredByLabel(String selector, String namespace) {
+        LabelSelector labelSelector;
+        labelSelector = getLabelSelector(selector);
         StringBuilder result = new StringBuilder();
         PodList podList = namespace != null ?
                 k8sClient.pods().inNamespace(namespace).withLabelSelector(labelSelector).list() :
                 k8sClient.pods().inAnyNamespace().withLabelSelector(labelSelector).list();
         for (Pod pod : podList.getItems()) {
             result.append(pod.getMetadata().getName()).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+     * kubectl get deployments --selector=version=v1 -o jsonpath='{.items[*].metadata.name}'
+     *
+     * @param selector Label filter (separated by comma)
+     * @param namespace Namespace
+     * @return Deployments list filtered
+     */
+    public String getDeploymentsFilteredByLabel(String selector, String namespace) {
+        LabelSelector labelSelector;
+        labelSelector = getLabelSelector(selector);
+        StringBuilder result = new StringBuilder();
+        DeploymentList deploymentList = namespace != null ?
+                k8sClient.apps().deployments().inNamespace(namespace).withLabelSelector(labelSelector).list() :
+                k8sClient.apps().deployments().inAnyNamespace().withLabelSelector(labelSelector).list();
+        for (Deployment deployment : deploymentList.getItems()) {
+            result.append(deployment.getMetadata().getName()).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+     * kubectl get replicasets --selector=version=v1 -o jsonpath='{.items[*].metadata.name}'
+     *
+     * @param selector Label filter (separated by comma)
+     * @param namespace Namespace
+     * @return Replicasets list filtered
+     */
+    public String getReplicaSetsFilteredByLabel(String selector, String namespace) {
+        LabelSelector labelSelector;
+        labelSelector = getLabelSelector(selector);
+        StringBuilder result = new StringBuilder();
+        ReplicaSetList replicasetList = namespace != null ?
+                k8sClient.apps().replicaSets().inNamespace(namespace).withLabelSelector(labelSelector).list() :
+                k8sClient.apps().replicaSets().inAnyNamespace().withLabelSelector(labelSelector).list();
+        for (ReplicaSet replicaset : replicasetList.getItems()) {
+            result.append(replicaset.getMetadata().getName()).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+     * kubectl get services --selector=version=v1 -o jsonpath='{.items[*].metadata.name}'
+     *
+     * @param selector Label filter (separated by comma)
+     * @param namespace Namespace
+     * @return services list filtered
+     */
+    public String getServicesFilteredByLabel(String selector, String namespace) {
+        LabelSelector labelSelector;
+        labelSelector = getLabelSelector(selector);
+        StringBuilder result = new StringBuilder();
+        ServiceList serviceList = namespace != null ?
+                k8sClient.services().inNamespace(namespace).withLabelSelector(labelSelector).list() :
+                k8sClient.services().inAnyNamespace().withLabelSelector(labelSelector).list();
+        for (Service service : serviceList.getItems()) {
+            result.append(service.getMetadata().getName()).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+     * kubectl get statefulsets --selector=version=v1 -o jsonpath='{.items[*].metadata.name}'
+     *
+     * @param selector Label filter (separated by comma)
+     * @param namespace Namespace
+     * @return StateFulSets list filtered
+     */
+    public String getStateFulSetsFilteredByLabel(String selector, String namespace) {
+        LabelSelector labelSelector;
+        labelSelector = getLabelSelector(selector);
+        StringBuilder result = new StringBuilder();
+        StatefulSetList statefulSetList = namespace != null ?
+                k8sClient.apps().statefulSets().inNamespace(namespace).withLabelSelector(labelSelector).list() :
+                k8sClient.apps().statefulSets().inAnyNamespace().withLabelSelector(labelSelector).list();
+        for (StatefulSet statefulSet : statefulSetList.getItems()) {
+            result.append(statefulSet.getMetadata().getName()).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+     * kubectl get configmaps --selector=version=v1 -o jsonpath='{.items[*].metadata.name}'
+     *
+     * @param selector Label filter (separated by comma)
+     * @param namespace Namespace
+     * @return ConfigMaps list filtered
+     */
+    public String getConfigMapsFilteredByLabel(String selector, String namespace) {
+        LabelSelector labelSelector;
+        labelSelector = getLabelSelector(selector);
+        StringBuilder result = new StringBuilder();
+        ConfigMapList configMapList = namespace != null ?
+                k8sClient.configMaps().inNamespace(namespace).withLabelSelector(labelSelector).list() :
+                k8sClient.configMaps().inAnyNamespace().withLabelSelector(labelSelector).list();
+        for (ConfigMap configMap : configMapList.getItems()) {
+            result.append(configMap.getMetadata().getName()).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+     * kubectl get serviceaccounts --selector=version=v1 -o jsonpath='{.items[*].metadata.name}'
+     *
+     * @param selector Label filter (separated by comma)
+     * @param namespace Namespace
+     * @return ServiceAccounts list filtered
+     */
+    public String getServiceAccountsFilteredByLabel(String selector, String namespace) {
+        LabelSelector labelSelector;
+        labelSelector = getLabelSelector(selector);
+        StringBuilder result = new StringBuilder();
+        ServiceAccountList serviceAccountList = namespace != null ?
+                k8sClient.serviceAccounts().inNamespace(namespace).withLabelSelector(labelSelector).list() :
+                k8sClient.serviceAccounts().inAnyNamespace().withLabelSelector(labelSelector).list();
+        for (ServiceAccount serviceAccount : serviceAccountList.getItems()) {
+            result.append(serviceAccount.getMetadata().getName()).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+     * kubectl get roles --selector=version=v1 -o jsonpath='{.items[*].metadata.name}'
+     *
+     * @param selector Label filter (separated by comma)
+     * @param namespace Namespace
+     * @return Roles list filtered
+     */
+    public String getRolesFilteredByLabel(String selector, String namespace) {
+        LabelSelector labelSelector;
+        labelSelector = getLabelSelector(selector);
+        StringBuilder result = new StringBuilder();
+        RoleList roleList = namespace != null ?
+                k8sClient.rbac().roles().inNamespace(namespace).withLabelSelector(labelSelector).list() :
+                k8sClient.rbac().roles().inAnyNamespace().withLabelSelector(labelSelector).list();
+        for (Role role : roleList.getItems()) {
+            result.append(role.getMetadata().getName()).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+     * kubectl get rolebindings --selector=version=v1 -o jsonpath='{.items[*].metadata.name}'
+     *
+     * @param selector Label filter (separated by comma)
+     * @param namespace Namespace
+     * @return Role list filtered
+     */
+    public String getRolesBindingsFilteredByLabel(String selector, String namespace) {
+        LabelSelector labelSelector;
+        labelSelector = getLabelSelector(selector);
+        StringBuilder result = new StringBuilder();
+        RoleBindingList roleBindingList = namespace != null ?
+                k8sClient.rbac().roleBindings().inNamespace(namespace).withLabelSelector(labelSelector).list() :
+                k8sClient.rbac().roleBindings().inAnyNamespace().withLabelSelector(labelSelector).list();
+        for (RoleBinding roleBinding : roleBindingList.getItems()) {
+            result.append(roleBinding.getMetadata().getName()).append("\n");
         }
         return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
     }
@@ -765,12 +1038,11 @@ public class KubernetesClient {
 
     /**
 
-    /**
+     /**
      * Get customresourcedefinition list
      *
      * @return customresourcedefinition list
      */
-
     public String getCustomResourceDefinitionList() {
         StringBuilder result = new StringBuilder();
         for (CustomResourceDefinition customResourceDefinition : k8sClient.customResourceDefinitions().list().getItems()) {
@@ -778,19 +1050,66 @@ public class KubernetesClient {
         }
         return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
     }
+
     /**
      * Get deployment list in selected namespace
      *
      * @param namespace Namespace
      * @return deployment list
      */
-
     public String getDeploymentList(String namespace) {
         StringBuilder result = new StringBuilder();
         for (Deployment deployment : k8sClient.apps().deployments().inNamespace(namespace).list().getItems()) {
             result.append(deployment.getMetadata().getName()).append("\n");
         }
         return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+     * Get service list in selected namespace
+     *
+     * @param namespace Namespace
+     * @return service list
+     */
+
+    public String getServiceList(String namespace) {
+        StringBuilder result = new StringBuilder();
+        for (Service service : k8sClient.services().inNamespace(namespace).list().getItems()) {
+            result.append(service.getMetadata().getName()).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+     /**
+     * Set local port forward for a service
+     *
+     * @param namespace Namespace
+     * @param name Name
+     * @param containerPort container port
+     * @param localHostPort local host port
+     */
+
+    public void setLocalPortForwardService(String namespace, String name, int containerPort, int localHostPort) {
+        localPortForward = k8sClient.services().inNamespace(namespace).withName(name).portForward(containerPort, localHostPort);
+    }
+
+    /**
+     * Set local port forward for a pod
+     *
+     * @param namespace Namespace
+     * @param name Name
+     * @param containerPort container port
+     * @param localHostPort local host port
+     */
+    public void setLocalPortForwardPod(String namespace, String name, int containerPort, int localHostPort) {
+        localPortForward = k8sClient.pods().inNamespace(namespace).withName(name).portForward(containerPort, localHostPort);
+    }
+
+    public void closePortForward() throws IOException {
+        if (localPortForward != null && localPortForward.isAlive()) {
+            localPortForward.close();
+        }
+        localPortForward = null;
     }
 
     /**

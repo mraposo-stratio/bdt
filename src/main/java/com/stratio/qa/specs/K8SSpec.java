@@ -16,12 +16,17 @@
 
 package com.stratio.qa.specs;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.stratio.qa.utils.ThreadProperty;
 import cucumber.api.java.en.Given;
+import cucumber.api.java.en.Then;
 import cucumber.api.java.en.When;
 import io.cucumber.datatable.DataTable;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.apps.Deployment;
+import io.fabric8.kubernetes.api.model.apps.StatefulSet;
 import org.testng.Assert;
 
 import java.io.FileNotFoundException;
@@ -60,7 +65,7 @@ public class K8SSpec extends BaseGSpec {
         commonspec.kubernetesClient.connect(kubeConfigPath);
     }
 
-    @When("^I get (pods|configmaps|serviceaccounts|replicasets|secrets|clusterroles|clusterrolebindings|statefulsets|roles|rolebindings|customresourcedefinitions|deployments)( in namespace '(.+?)')? and save it in environment variable '(.+?)'$")
+    @When("^I get (pods|configmaps|serviceaccounts|replicasets|secrets|clusterroles|clusterrolebindings|statefulsets|roles|rolebindings|customresourcedefinitions|deployments|services)( in namespace '(.+?)')? and save it in environment variable '(.+?)'$")
     public void getList(String type, String namespace, String envVar) {
         String response = null;
         switch (type) {
@@ -88,6 +93,8 @@ public class K8SSpec extends BaseGSpec {
                                                 break;
             case "deployments":    response = commonspec.kubernetesClient.getDeploymentList(namespace);
                                   break;
+            case "services":    response = commonspec.kubernetesClient.getServiceList(namespace);
+                              break;
             default:
         }
         ThreadProperty.set(envVar, response);
@@ -98,8 +105,13 @@ public class K8SSpec extends BaseGSpec {
         ThreadProperty.set(envVar, commonspec.kubernetesClient.getAllNamespaces());
     }
 
+    @When("^I check that there is( not)? an event that contains the message '(.+?)' in namespace '(.+?)' (with resource type '(.+?)')? (with resource name '(.+?)')? (with reason '(.+?)')?$")
+    public void checkEventNamespace(String not, String message, String namespace, String type, String name, String reason) {
+        assertThat(commonspec.kubernetesClient.checkEventNamespace(not, namespace, type, name, reason, message)).as("There aren't event that contains the message " + message + " in namespace " + namespace).isTrue();
+    }
+
     @When("^I describe (pod|service|deployment|configmap|replicaset|serviceaccount|secret|clusterrole|clusterrolebinding|statefulset|role|rolebinding) with name '(.+?)'( in namespace '(.+?)')?( in '(yaml|json)' format)?( and save it in environment variable '(.*?)')?( and save it in file '(.*?)')?$")
-    public void describePod(String type, String name, String namespace, String format, String envVar, String fileName) throws Exception {
+    public void describeResource(String type, String name, String namespace, String format, String envVar, String fileName) throws Exception {
         String describeResponse;
         format = (format != null) ? format : "yaml";
         switch (type) {
@@ -147,6 +159,30 @@ public class K8SSpec extends BaseGSpec {
         }
     }
 
+    @When("^I describe custom resource '(.+?)' with name '(.+?)' in namespace '(.+?)'( in '(yaml|json)' format)?( and save it in file '(.*?)')?$")
+    public void describeCustomResource(String name, String nameItem, String namespace, String format, String fileName) throws Exception {
+        String describeResponse;
+        format = (format != null) ? format : "yaml";
+        describeResponse = commonspec.kubernetesClient.describeCustomResourceJson(name, nameItem, namespace);
+        if (describeResponse == null) {
+            fail("Error obtaining" + name + nameItem + " information");
+        }
+
+        if (format.equals("yaml")) {
+            String std = describeResponse.replace("\r", "").replace("\n", ""); // make sure we have unix style text regardless of the input
+            // parse JSON
+            JsonNode jsonNodeTree = new ObjectMapper().readTree(std);
+            // save it as YAML
+            describeResponse = new YAMLMapper().writeValueAsString(jsonNodeTree);
+        }
+
+        getCommonSpec().getLogger().debug(name + " " + nameItem + " Response: " + describeResponse);
+
+        if (fileName != null) {
+            writeInFile(describeResponse, fileName);
+        }
+    }
+
     @When("^I run pod with name '(.+?)', in namespace '(.+?)', with image '(.+?)'(, with image pull policy '(.+?)')?, restart policy '(.+?)', service account '(.+?)', command '(.+?)' and the following arguments:$")
     public void runPod(String name, String namespace, String image, String imagePullPolicy, String restartPolicy, String serviceAccount, String command, DataTable arguments) {
         List<String> argumentsList = new ArrayList<>();
@@ -187,7 +223,11 @@ public class K8SSpec extends BaseGSpec {
         int i = 0;
         while (!found && i <= timeout) {
             try {
-                String[] podsList = commonspec.kubernetesClient.getPodsFilteredByLabel(podSelector, namespace).split("\n");
+                String[] podsList = {};
+                String pods = commonspec.kubernetesClient.getPodsFilteredByLabel(podSelector, namespace);
+                if (!pods.equals("")) {
+                    podsList = pods.split("\n");
+                }
                 Assert.assertEquals(podsList.length, expectedPods.intValue(), "Expected pods");
                 for (String podName : podsList) {
                     Pod pod = commonspec.kubernetesClient.getPod(podName, namespace);
@@ -228,6 +268,47 @@ public class K8SSpec extends BaseGSpec {
         }
     }
 
+    @When("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, statefulset with name '(.+?)' in namespace '(.+?)' has '(\\d+)' replicas ready$")
+    public void assertStatefulsetStatus(Integer timeout, Integer wait, String statefulsetName, String namespace, Integer readyReplicas) throws InterruptedException {
+        boolean found = false;
+        int i = 0;
+        while (!found && i <= timeout) {
+
+            StatefulSet statefulSet = commonspec.kubernetesClient.getStateFulSet(statefulsetName, namespace);
+            try {
+                Assert.assertEquals(statefulSet.getStatus().getReadyReplicas().intValue(), readyReplicas.intValue(), "# Ready Replicas");
+                found = true;
+            } catch (AssertionError | Exception e) {
+                getCommonSpec().getLogger().info("Expected replicas ready don't found after " + i + " seconds");
+                if (i >= timeout) {
+                    throw e;
+                }
+                Thread.sleep(wait * 1000);
+            }
+            i += wait;
+        }
+    }
+
+    @When("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, custom resource '(.+?)' with name '(.+?)' in namespace '(.+?)' has '(\\d+)' replicas ready$")
+    public void assertCustomResourceStatus(Integer timeout, Integer wait, String name, String nameItem, String namespace, Integer readyReplicas) throws InterruptedException, IOException {
+        boolean found = false;
+        int i = 0;
+        while (!found && i <= timeout) {
+            try {
+                Assert.assertEquals((commonspec.kubernetesClient.getReadyReplicasCustomResource(name, nameItem, namespace)).intValue(), readyReplicas.intValue(), "# Ready Replicas");
+                found = true;
+            } catch (AssertionError | Exception e) {
+                getCommonSpec().getLogger().info("Expected replicas ready don't found after " + i + " seconds");
+                if (i >= timeout) {
+                    throw e;
+                }
+                Thread.sleep(wait * 1000);
+            }
+            i += wait;
+        }
+    }
+
+
     @When("^I create deployment with name '(.+?)', in namespace '(.+?)', with image '(.+?)'( and image pull policy '(.+?)')?$")
     public void createDeployment(String name, String namespace, String image, String imagePullPolicy) {
         commonspec.kubernetesClient.createDeployment(name, namespace, image, imagePullPolicy);
@@ -249,11 +330,14 @@ public class K8SSpec extends BaseGSpec {
         }
     }
 
-    @When("^I execute '(.+?)' command in pod with name '(.+?)' in namespace '(.+?)'( and save it in environment variable '(.+?)')?$")
-    public void runCommandInPod(String command, String name, String namespace, String envVar) throws InterruptedException {
-        String result = commonspec.kubernetesClient.execCommand(name, namespace, command.split("\n"));
+    @When("^I execute '(.+?)' command in pod with name '(.+?)' in namespace '(.+?)'( and save it in environment variable '(.+?)')?( and save it in file '(.*?)')?$")
+    public void runCommandInPod(String command, String name, String namespace, String envVar, String fileName) throws Exception {
+        String result = commonspec.kubernetesClient.execCommand(name, namespace, command.split("\n| "));
         if (envVar != null) {
             ThreadProperty.set(envVar, result);
+        }
+        if (fileName != null) {
+            writeInFile(result, fileName);
         }
     }
 
@@ -262,9 +346,22 @@ public class K8SSpec extends BaseGSpec {
         commonspec.kubernetesClient.createOrReplaceResource(yamlFile, namespace);
     }
 
-    @When("^I apply configuration file located at '(.+?)', in namespace '(.+?)', using the following CustomResourceDefinition: version '(.+?)', plural '(.+?)', kind '(.+?)', name '(.+?)', scope '(.+?)', group '(.+?)'$")
-    public void applyConfigurationCustomResourceDefinition(String yamlFile, String namespace, String version, String plural, String kind, String name, String scope, String group) throws IOException {
-        commonspec.kubernetesClient.createOrReplaceCustomResource(yamlFile, namespace, version, plural, kind, name, scope, group);
+    @When("^I apply configuration file located at '(.+?)', in namespace '(.+?)', using the following CustomResourceDefinition: version '(.+?)', plural '(.+?)', kind '(.+?)', name '(.+?)', scope '(.+?)', group '(.+?)'(, and return an exception that contains '(.+?)')?$")
+    public void applyConfigurationCustomResourceDefinition(String yamlFile, String namespace, String version, String plural, String kind, String name, String scope, String group, String message) throws IOException {
+        try {
+            commonspec.kubernetesClient.createOrReplaceCustomResource(yamlFile, namespace, version, plural, kind, name, scope, group);
+        } catch (AssertionError | Exception e) {
+            if (message != null) {
+                assertThat(e.getMessage()).contains(message);
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    @When("^I get custom resource '(.+?)' in namespace '(.+?)' and save it in environment variable '(.+?)'$")
+    public void getCustomResources(String name, String namespace, String envVar) throws IOException {
+        ThreadProperty.set(envVar, commonspec.kubernetesClient.getCustomResource(name, namespace));
     }
 
     @Given("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, log of pod '(.+?)' in namespace '(.+?)' contains '(.+?)'$")
@@ -300,18 +397,60 @@ public class K8SSpec extends BaseGSpec {
         }
     }
 
+    @When("^I delete custom resource '(.+?)' with name '(.+?)' in namespace '(.+?)'$")
+    public void deleteCustomResource(String name, String nameItem, String namespace) throws Exception {
+        commonspec.kubernetesClient.deleteCustomResourceItem(name, nameItem, namespace);
+    }
+
+
     @Given("^I scale deployment '(.+?)' in namespace '(.+?)' to '(\\d+)' instances")
     public void scaleK8s(String deployment, String namespace, Integer instances) {
         commonspec.kubernetesClient.scaleDeployment(deployment, namespace, instances);
     }
 
-    @When("^I get pods using the following label filter '(.+?)'( in namespace '(.+?)')? and save it in environment variable '(.+?)'$")
-    public void getPodsLabelSelector(String selector, String namespace, String envVar) {
-        ThreadProperty.set(envVar, commonspec.kubernetesClient.getPodsFilteredByLabel(selector, namespace));
+    @When("^I get (pods|deployments|replicasets|services|statefulsets|configmaps|serviceacounts|roles|rolebindings) using the following label filter '(.+?)'( in namespace '(.+?)')? and save it in environment variable '(.+?)'$")
+    public void getPodsLabelSelector(String type, String selector, String namespace, String envVar) {
+        switch (type) {
+            case "pods":    ThreadProperty.set(envVar, commonspec.kubernetesClient.getPodsFilteredByLabel(selector, namespace));
+                            break;
+            case "deployments":     ThreadProperty.set(envVar, commonspec.kubernetesClient.getDeploymentsFilteredByLabel(selector, namespace));
+                                    break;
+            case "replicasets":     ThreadProperty.set(envVar, commonspec.kubernetesClient.getReplicaSetsFilteredByLabel(selector, namespace));
+                                    break;
+            case "services":     ThreadProperty.set(envVar, commonspec.kubernetesClient.getServicesFilteredByLabel(selector, namespace));
+                                    break;
+            case "statefulsets":     ThreadProperty.set(envVar, commonspec.kubernetesClient.getStateFulSetsFilteredByLabel(selector, namespace));
+                                    break;
+            case "configmaps":     ThreadProperty.set(envVar, commonspec.kubernetesClient.getConfigMapsFilteredByLabel(selector, namespace));
+                                    break;
+            case "serviceaccounts":     ThreadProperty.set(envVar, commonspec.kubernetesClient.getServiceAccountsFilteredByLabel(selector, namespace));
+                                        break;
+            case "roles":     ThreadProperty.set(envVar, commonspec.kubernetesClient.getRolesFilteredByLabel(selector, namespace));
+                              break;
+            case "rolebindings":     ThreadProperty.set(envVar, commonspec.kubernetesClient.getRolesBindingsFilteredByLabel(selector, namespace));
+                              break;
+            default:
+        }
     }
 
     @When("^I get pods using the following field filter '(.+?)'( in namespace '(.+?)')? and save it in environment variable '(.+?)'$")
     public void getPodsFieldSelector(String selector, String namespace, String envVar) {
         ThreadProperty.set(envVar, commonspec.kubernetesClient.getPodsFilteredByField(selector, namespace));
+    }
+
+    @Given("^I forward containerPort '(\\d+)' in localhostPort '(\\d+)' for (pod|service) '(.+?)'( in namespace '(.+?)')?$")
+    public void setLocalPortForward(Integer containerPort, Integer localhostPort, String type, String name, String namespace) {
+        switch (type) {
+            case "pod":     commonspec.kubernetesClient.setLocalPortForwardPod(namespace, name, containerPort, localhostPort);
+                            break;
+            case "service": commonspec.kubernetesClient.setLocalPortForwardService(namespace, name, containerPort, localhostPort);
+                            break;
+            default:
+        }
+    }
+
+    @Then("^I close port forward$")
+    public void closePortForward() throws IOException {
+        commonspec.kubernetesClient.closePortForward();
     }
 }
