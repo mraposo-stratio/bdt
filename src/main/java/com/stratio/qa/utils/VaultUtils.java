@@ -35,6 +35,8 @@ public class VaultUtils {
 
     private String protocol;
 
+    private String port;
+
     private String userlandBasePath = "/userland";
 
     private String peopleBasePath = "/people";
@@ -61,9 +63,10 @@ public class VaultUtils {
 
     public VaultUtils() {
         this.basePath = this.userlandBasePath;
-        this.host = System.getProperty("EOS_VAULT_HOST") != null ? System.getProperty("EOS_VAULT_HOST") : ThreadProperty.get("EOS_VAULT_HOST") != null ? ThreadProperty.get("EOS_VAULT_HOST") : "";
+        this.host = System.getProperty("VAULT_HOST") != null ? System.getProperty("VAULT_HOST") : ThreadProperty.get("VAULT_HOST") != null ? ThreadProperty.get("VAULT_HOST") : "";
         this.token = System.getProperty("VAULT_TOKEN") != null ? System.getProperty("VAULT_TOKEN") : ThreadProperty.get("VAULT_TOKEN") != null ? ThreadProperty.get("VAULT_TOKEN") : "";
         this.protocol = System.getProperty("VAULT_PROTOCOL") != null ? "http://" : "https://";
+        this.port = System.getProperty("EOS_VAULT_PORT") != null ? System.getProperty("EOS_VAULT_PORT") : ThreadProperty.get("EOS_VAULT_PORT") != null ? ThreadProperty.get("EOS_VAULT_PORT") : "8200";;
     }
 
     public void setProtocol(String protocol) {
@@ -84,7 +87,7 @@ public class VaultUtils {
     }
 
     private void getDataFromPath(String dataPath, String filter) throws Exception {
-        String command = "curl -X GET -fskL --tlsv1.2 -H \"X-Vault-Token:" + token + "\" \"" + protocol + host + ":8200/v1" + dataPath + "\" | " + filter;
+        String command = "curl -X GET -fskL --tlsv1.2 -H \"X-Vault-Token:" + token + "\" \"" + protocol + host + ":" + port + "/v1" + dataPath + "\" | " + filter;
         logger.debug("Retrieving data from Vault: " + command);
         comm.runLocalCommand(command);
         vaultData = comm.getCommandResult();
@@ -125,14 +128,14 @@ public class VaultUtils {
         String commandGetCABundle = "";
 
         String caTrustListPath = caBasePath + certificatesPath;
-        String command = "curl -X LIST -fskL --tlsv1.2 -H \"X-Vault-Token:" + token + "\" \"" + protocol + host + ":8200/v1" + caTrustListPath + "\" | jq -cM .data.keys | jq '. | length'";
+        String command = "curl -X LIST -fskL --tlsv1.2 -H \"X-Vault-Token:" + token + "\" \"" + protocol + host + ":" + port + "/v1" + caTrustListPath + "\" | jq -cM .data.keys | jq '. | length'";
         comm.runLocalCommand(command);
 
         Assertions.assertThat(comm.getCommandResult()).isNotEmpty();
 
         numCaTrust = Integer.parseInt(comm.getCommandResult());
         for (int i = 0; i < numCaTrust; i++) {
-            command = "curl -X LIST -fskL --tlsv1.2 -H \"X-Vault-Token:" + token + "\" \"" + protocol + host + ":8200/v1" + caTrustListPath + "\" | jq -cMr .data.keys[" + i + "]";
+            command = "curl -X LIST -fskL --tlsv1.2 -H \"X-Vault-Token:" + token + "\" \"" + protocol + host + ":" + port + "/v1" + caTrustListPath + "\" | jq -cMr .data.keys[" + i + "]";
             comm.runLocalCommand(command);
             certificate = comm.getCommandResult();
 

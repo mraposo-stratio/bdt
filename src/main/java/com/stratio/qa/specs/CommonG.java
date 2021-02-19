@@ -2320,21 +2320,26 @@ public class CommonG {
     public JSONObject parseJSONSchema(JSONObject schema) throws Exception {
         JSONObject json = new JSONObject();
         String name = "";
-        JSONObject properties = schema;
+        JSONObject jsonSchema = schema;
+
+        // Check if key 'parameters' exists
+        if (jsonSchema.has("parameters")) {
+            jsonSchema = jsonSchema.getJSONObject("parameters");
+        }
 
         // Check if key 'properties' exists
-        if (schema.has("properties")) {
+        if (jsonSchema.has("properties")) {
             // Obtain properties
-            properties = schema.getJSONObject("properties");
+            jsonSchema = jsonSchema.getJSONObject("properties");
         }
 
         // Obtain all keys and iterate through them
-        Iterator<?> keys = properties.keys();
+        Iterator<?> keys = jsonSchema.keys();
         while (keys.hasNext()) {
             // Obtain key
             String key = keys.next().toString();
             // Obtain value of key
-            JSONObject element = properties.getJSONObject(key);
+            JSONObject element = jsonSchema.getJSONObject(key);
             // Check if value contain properties
             // If it DOESN'T CONTAIN properties
             if (!element.has("properties")) {
@@ -2539,15 +2544,21 @@ public class CommonG {
         }
     }
 
-
     public void setCCTConnection(String tenantOrig, String loginInfo) throws Exception {
+        if (ThreadProperty.get("EOS_ACCESS_POINT") == null && ThreadProperty.get("KEOS_OAUTH2_PROXY_HOST") == null) {
+            fail("KEOS_OAUTH2_PROXY_HOST and EOS_ACCESS_POINT variable are not set. Check @keos / @dcos annotation is working properly.");
+        }
+        if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
+            setCCTConnectionKeos(tenantOrig, loginInfo);
+        } else {
+            setCCTConnectionDCOS(tenantOrig, loginInfo);
+        }
+    }
+
+    private void setCCTConnectionDCOS(String tenantOrig, String loginInfo) throws Exception {
         String tenant = tenantOrig;
         String user;
         String password;
-
-        if (ThreadProperty.get("EOS_ACCESS_POINT") == null) {
-            fail("EOS_ACCESS_POINT variable is not set. Check @dcos annotation is working properly.");
-        }
 
         if (tenantOrig == null) {
             tenant = ThreadProperty.get("DCOS_TENANT");
@@ -2568,6 +2579,33 @@ public class CommonG {
         // Securely send requests
         this.setRestProtocol("https://");
         this.setRestHost(ThreadProperty.get("EOS_ACCESS_POINT"));
+        this.setRestPort(":443");
+    }
+
+    private void setCCTConnectionKeos(String tenantOrig, String loginInfo) throws Exception {
+        String tenant = tenantOrig;
+        String user;
+        String password;
+
+        if (tenantOrig == null) {
+            tenant = ThreadProperty.get("KEOS_TENANT");
+        }
+
+        if (loginInfo == null) {
+            user = ThreadProperty.get("KEOS_USER");
+            password = ThreadProperty.get("KEOS_PASSWORD") != null ? ThreadProperty.get("KEOS_PASSWORD") : System.getProperty("KEOS_PASSWORD");
+        } else {
+            user = loginInfo.split(":")[0];
+            password = loginInfo.split(":")[1];
+        }
+
+        // Set sso token
+        KeosSpec keosSpec = new KeosSpec(this);
+        keosSpec.setGoSecSSOCookieKeos(ThreadProperty.get("KEOS_OAUTH2_PROXY_HOST"), user, password, tenant);
+
+        // Securely send requests
+        this.setRestProtocol("https://");
+        this.setRestHost(ThreadProperty.get("KEOS_OAUTH2_PROXY_HOST"));
         this.setRestPort(":443");
     }
 
@@ -2636,5 +2674,22 @@ public class CommonG {
 
     public void initKubernetesClient() {
         kubernetesClient = KubernetesClient.getInstance();
+    }
+
+    /**
+     * Obtain cookies from previous request
+     *
+     * @param ssoCookies
+     * @param tokenList
+     * @return
+     */
+    public List<com.ning.http.client.cookie.Cookie> addSsoToken(HashMap<String, String> ssoCookies, String[] tokenList) {
+        List<com.ning.http.client.cookie.Cookie> cookiesAttributes = new ArrayList<>();
+        for (String tokenKey : tokenList) {
+            cookiesAttributes.add(new com.ning.http.client.cookie.Cookie(tokenKey, ssoCookies.get(tokenKey),
+                    false, null,
+                    null, 999999, false, false));
+        }
+        return cookiesAttributes;
     }
 }

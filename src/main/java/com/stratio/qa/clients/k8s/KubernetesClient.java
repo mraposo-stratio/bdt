@@ -22,8 +22,8 @@ import com.stratio.qa.specs.CommonG;
 import com.stratio.qa.utils.ThreadProperty;
 import io.fabric8.kubernetes.api.model.*;
 import io.fabric8.kubernetes.api.model.apiextensions.v1beta1.CustomResourceDefinition;
-import io.fabric8.kubernetes.api.model.apiextensions.v1beta1.CustomResourceDefinitionList;
 import io.fabric8.kubernetes.api.model.apps.*;
+import io.fabric8.kubernetes.api.model.extensions.Ingress;
 import io.fabric8.kubernetes.api.model.rbac.*;
 import io.fabric8.kubernetes.client.Config;
 import io.fabric8.kubernetes.client.DefaultKubernetesClient;
@@ -117,6 +117,118 @@ public class KubernetesClient {
         ThreadProperty.set("CLUSTER_SSH_USER", commonspec.getJSONPathString(daedalusJson, "$.infra.ssh_user", null).replaceAll("\\[", "").replaceAll("\\]", "").replaceAll("\"", ""));
         ThreadProperty.set("CLUSTER_SSH_PEM_PATH", "./target/test-classes/" + workspaceName + "/key");
         ThreadProperty.set("CLUSTER_KUBE_CONFIG_PATH", "./target/test-classes/" + workspaceName + "/.kube/config");
+
+        // Connect to Kubernetes
+        getInstance().connect(ThreadProperty.get("CLUSTER_KUBE_CONFIG_PATH"));
+
+        // Vault values
+        getK8sVaultConfig(commonspec);
+
+        // Get worker and set ingress hosts variables
+        getK8sWorkerAndIngressHosts();
+
+        // Save IP in /etc/hosts
+        commonspec.getETCHOSTSManagementUtils().addK8sHost(ThreadProperty.get("WORKER_IP"), ThreadProperty.get("KEOS_SIS_HOST") + " " + ThreadProperty.get("KEOS_OAUTH2_PROXY_HOST"));
+
+        // Set variables from command-center-config configmap
+        getK8sCCTConfig(commonspec);
+
+        // Default values for some variables
+        ThreadProperty.set("KEOS_PASSWORD", System.getProperty("KEOS_PASSWORD") != null ? System.getProperty("KEOS_PASSWORD") : "1234");
+    }
+
+    private void getK8sVaultConfig(CommonG commonspec) throws Exception {
+        String vaultRoot = new JSONObject(commonspec.convertYamlStringToJson(getInstance().describeSecret("vault-unseal-keys", "keos-core"))).getJSONObject("data").getString("vault-root");
+        commonspec.runLocalCommand("echo " + vaultRoot + " | base64 -d");
+        commonspec.runCommandLoggerAndEnvVar(0, "VAULT_TOKEN", Boolean.TRUE);
+        ThreadProperty.set("VAULT_HOST", "127.0.0.1");
+        String serviceJson = commonspec.convertYamlStringToJson(getInstance().describeServiceYaml("vault", "keos-core"));
+        ThreadProperty.set("VAULT_PORT", commonspec.getJSONPathString(serviceJson, "$.spec.ports[0].port", null).replaceAll("\\[", "").replaceAll("\\]", "").replaceAll("\"", ""));
+    }
+
+    private void getK8sWorkerAndIngressHosts() {
+        // Get worker
+        for (Node node : k8sClient.nodes().withLabelSelector(getLabelSelector("node-role.kubernetes.io/worker=")).list().getItems()) {
+            // Check conditions ready
+            boolean conditionsReady = false;
+            for (NodeCondition nodeCondition : node.getStatus().getConditions()) {
+                if (nodeCondition.getType().equals("Ready") && nodeCondition.getStatus().equals("True")) {
+                    conditionsReady = true;
+                    break;
+                }
+            }
+            if (conditionsReady) {
+                for (NodeAddress nodeAddress : node.getStatus().getAddresses()) {
+                    if (nodeAddress.getType().equals("InternalIP")) {
+                        ThreadProperty.set("WORKER_IP", nodeAddress.getAddress());
+                    }
+                }
+            }
+            if (ThreadProperty.get("WORKER_IP") != null) {
+                break;
+            }
+        }
+
+        // Get ingress hosts
+        for (Ingress ingress : k8sClient.extensions().ingresses().inNamespace("keos-auth").list().getItems()) {
+            String varName = null;
+            switch (ingress.getMetadata().getName()) {
+                case "sis":
+                    varName = "KEOS_SIS_HOST";
+                    break;
+                case "oauth2-proxy":
+                    varName = "KEOS_OAUTH2_PROXY_HOST";
+                    break;
+                default:
+            }
+            if (varName != null) {
+                ThreadProperty.set(varName, ingress.getSpec().getRules().get(0).getHost());
+            }
+        }
+    }
+
+    private void getK8sCCTConfig(CommonG commonspec) {
+        try {
+            String centralConfigJson = getConfigMap("command-center-config", "keos-cct").getData().get("central-config.json");
+
+            obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.eos.dockerRegistry", "DOCKER_REGISTRY", null);
+            obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.eos.proxyAccessPointURL", "KEOS_ACCESS_POINT", null);
+
+            //obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.globals.sso.ssoTenantDefault", "KEOS_TENANT", null);
+            // TODO Review KEOS_TENANT, in configmap value is NONE
+            ThreadProperty.set("KEOS_TENANT", "default");
+
+            obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.globals.kerberos.realm", "KEOS_REALM", null);
+            obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.globals.kerberos.kdcHost", "KDC_HOST", null);
+            obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.globals.kerberos.kdcPort", "KDC_PORT", null);
+            obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.globals.kerberos.kadminHost", "KADMIN_HOST", null);
+            obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.globals.kerberos.kadminPort", "KADMIN_PORT", null);
+
+            obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.globals.ldap.adminUserUuid", "KEOS_USER", null);
+            obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.globals.ldap.url", "LDAP_URL", null);
+            obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.globals.ldap.port", "LDAP_PORT", null);
+            obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.globals.ldap.userDn", "LDAP_USER_DN", null);
+            obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.globals.ldap.groupDN", "LDAP_GROUP_DN", null);
+            obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.globals.ldap.ldapBase", "LDAP_BASE", null);
+            obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.globals.ldap.adminrouterAuthorizedGroup", "LDAP_ADMIN_GROUP", null);
+
+            obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.globals.vault.vaultHost", "KEOS_VAULT_HOST_INTERNAL", null);
+        } catch (Exception e) {
+            commonspec.getLogger().error("Error reading command center config", e);
+        }
+    }
+
+    /**
+     * Obtain info from json and expose in thread variable
+     *
+     * @param json          : json to look for info in
+     * @param jqExpression  : jq expression to obtain specific info from json
+     * @param envVar        : thread variable where to expose value
+     * @param position      : position in value obtained with jq
+     */
+    public void obtainJSONInfoAndExpose(CommonG commonspec, String json, String jqExpression, String envVar, String position) {
+        String value = commonspec.getJSONPathString(json, jqExpression, position).replaceAll("\\[", "").replaceAll("\\]", "").replaceAll("\"", "");
+        ThreadProperty.set(envVar, value);
     }
 
     /**
@@ -512,7 +624,10 @@ public class KubernetesClient {
         Map<String, String> expressions = new HashMap<>();
         for (String sel : arraySelector) {
             String labelKey = sel.split("=")[0];
-            String labelValue = sel.split("=")[1];
+            String labelValue = "";
+            if (sel.split("=").length > 1) {
+                labelValue = sel.split("=")[1];
+            }
             expressions.put(labelKey, labelValue);
         }
         labelSelector.setMatchLabels(expressions);
@@ -1037,6 +1152,16 @@ public class KubernetesClient {
     }
 
     /**
+     * kubectl describe rolebinding xxx -n namespace
+     *
+     * @param roleName rolebinding name
+     * @param namespace Namespace
+     *
+     * @return String with rolebinding
+     */
+    public String describeRoleBinding(String roleName, String namespace) throws JsonProcessingException {
+        return SerializationUtils.dumpAsYaml(getRoleBinding(roleName, namespace));
+    }
 
      /**
      * Get customresourcedefinition list
@@ -1071,13 +1196,48 @@ public class KubernetesClient {
      * @param namespace Namespace
      * @return service list
      */
-
     public String getServiceList(String namespace) {
         StringBuilder result = new StringBuilder();
         for (Service service : k8sClient.services().inNamespace(namespace).list().getItems()) {
             result.append(service.getMetadata().getName()).append("\n");
         }
         return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+     * Get ingress
+     *
+     * @param name name
+     * @param namespace Namespace
+     * @return Ingress
+     */
+    public Ingress getIngress(String name, String namespace) {
+        return k8sClient.extensions().ingresses().inNamespace(namespace).withName(name).get();
+    }
+
+    /**
+     * kubectl get ingress -n namespace
+     *
+     * @param namespace Namespace
+     * @return ingress list
+     */
+    public String getIngressList(String namespace) {
+        StringBuilder result = new StringBuilder();
+        for (Ingress ingress : k8sClient.extensions().ingresses().inNamespace(namespace).list().getItems()) {
+            result.append(ingress.getMetadata().getName()).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+     * kubectl describe ingress -n namespace
+     *
+     * @param ingressName Ingress name
+     * @param namespace Namespace
+     * @return String with ingress information
+     */
+    public String describeIngress(String ingressName, String namespace) throws JsonProcessingException {
+        return SerializationUtils.dumpAsYaml(getIngress(ingressName, namespace));
     }
 
      /**
@@ -1110,18 +1270,6 @@ public class KubernetesClient {
             localPortForward.close();
         }
         localPortForward = null;
-    }
-
-    /**
-     * kubectl describe rolebinding xxx -n namespace
-     *
-     * @param roleName rolebinding name
-     * @param namespace Namespace
-     *
-     * @return String with rolebinding
-     */
-    public String describeRoleBinding(String roleName, String namespace) throws JsonProcessingException {
-        return SerializationUtils.dumpAsYaml(getRoleBinding(roleName, namespace));
     }
 
     private static class MyPodExecListener implements ExecListener {

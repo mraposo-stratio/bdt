@@ -80,7 +80,6 @@ public class GosecSpec extends BaseGSpec {
     @When("^I create '(policy|user|group)' '(.+?)'( in tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( using API service path '(.+?)')?( with user and password '(.+:.+?)')? based on '([^:]+?)'( as '(json|string|gov)')? with:$")
     public void createResource(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String endPoint, String loginInfo, String baseData, String type, DataTable modifications) throws Exception {
         createResourceIfNotExist(resource, resourceId, tenantOrig, tenantLoginInfo, endPoint, loginInfo, false, baseData, type, modifications);
-
     }
 
     /**
@@ -118,6 +117,14 @@ public class GosecSpec extends BaseGSpec {
      * @throws Exception
      */
     private void createResourceIfNotExist(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String endPoint, String loginInfo, boolean doesNotExist, String baseData, String type, DataTable modifications) throws Exception {
+        if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
+            createResourceIfNotExistKeos(resource, resourceId, tenantOrig, tenantLoginInfo, endPoint, loginInfo, doesNotExist, baseData, type, modifications);
+        } else {
+            createResourceIfNotExistDcos(resource, resourceId, tenantOrig, tenantLoginInfo, endPoint, loginInfo, doesNotExist, baseData, type, modifications);
+        }
+    }
+
+    private void createResourceIfNotExistDcos(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String endPoint, String loginInfo, boolean doesNotExist, String baseData, String type, DataTable modifications) throws Exception {
         Integer expectedStatusCreate = 201;
         Integer[] expectedStatusDelete = {200, 204};
         String endPointResource = "";
@@ -183,29 +190,12 @@ public class GosecSpec extends BaseGSpec {
             if (resource.equals("policy")) {
                 restSpec.sendRequestNoDataTable("GET", endPointPolicies, loginInfo, null, null);
                 if (commonspec.getResponse().getStatusCode() == 200) {
-                    if (managementBaasVersion != null) {
-                        commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + "' | jq '.list[] | select (.name == \"" + resourceId + "\").pid' | sed s/\\\"//g");
-                        String policyId = commonspec.getCommandResult().trim();
-                        if (!policyId.equals("")) {
-                            commonspec.getLogger().debug("PolicyId obtained: {}", policyId);
-                            endPointResource = endPointPolicy + policyId;
-                        }
+                    String policyId = getPolicyIdFromResponse(commonspec.getResponse().getResponse(), resourceId, managementBaasVersion != null);
+                    if (!policyId.equals("")) {
+                        commonspec.getLogger().debug("PolicyId obtained: {}", policyId);
+                        endPointResource = endPointPolicy + policyId;
                     } else {
-                        commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + "' | jq '.list[] | select (.name == \"" + resourceId + "\").id' | sed s/\\\"//g");
-                        String policyId = commonspec.getCommandResult().trim();
-                        if (!policyId.equals("")) {
-                            commonspec.getLogger().debug("PolicyId obtained: {}", policyId);
-                            endPointResource = endPointPolicy + policyId;
-                        } else {
-                            commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + "' | jq '.[] | select (.name == \"" + resourceId + "\").id' | sed s/\\\"//g");
-                            policyId = commonspec.getCommandResult().trim();
-                            if (!policyId.equals("")) {
-                                commonspec.getLogger().debug("PolicyId obtained: {}", policyId);
-                                endPointResource = endPointPolicy + policyId;
-                            } else {
-                                endPointResource = endPointPolicy + "thisIsANewPolicyId";
-                            }
-                        }
+                        endPointResource = endPointPolicy + "thisIsANewPolicyId";
                     }
                 }
             }
@@ -256,13 +246,134 @@ public class GosecSpec extends BaseGSpec {
                             commonspec.getLogger().warn("Error deleting Policy {}: {}", resourceId, commonspec.getResponse().getResponse());
                             throw e;
                         }
-                        createResourceIfNotExist(resource, resourceId, tenantOrig, tenantLoginInfo, endPoint, loginInfo, doesNotExist, baseData, type, modifications);
+                        createResourceIfNotExistDcos(resource, resourceId, tenantOrig, tenantLoginInfo, endPoint, loginInfo, doesNotExist, baseData, type, modifications);
                     }
                 }
             }
         } catch (Exception e) {
             commonspec.getLogger().error("Rest Host or Rest Port are not initialized {}{}", commonspec.getRestHost(), commonspec.getRestPort());
             throw e;
+        }
+    }
+
+    private void createResourceIfNotExistKeos(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String endPoint, String loginInfo, boolean doesNotExist, String baseData, String type, DataTable modifications) throws Exception {
+        Integer expectedStatusCreate = 201;
+        Integer[] expectedStatusDelete = {200, 204};
+        String endPointResource = "";
+        String resourcePrefix = getResourcePrefix(resource);
+        String endPointPolicies = "/baas/management/policies";
+
+        if (tenantOrig != null) {
+            // Set REST connection
+            commonspec.setCCTConnection(tenantOrig, tenantLoginInfo);
+        }
+
+        if (endPoint == null) {
+            endPoint = getResourceEndpoint(resource);
+        }
+        endPointResource = endPoint + resourcePrefix + resourceId;
+
+        try {
+            assertThat(commonspec.getRestHost().isEmpty() || commonspec.getRestPort().isEmpty());
+
+            if (resource.equals("policy")) {
+                restSpec.sendRequestNoDataTable("GET", endPointPolicies, loginInfo, null, null);
+                if (commonspec.getResponse().getStatusCode() == 200) {
+                    String policyId = getPolicyIdFromResponse(commonspec.getResponse().getResponse(), resourceId, true);
+                    if (!policyId.equals("")) {
+                        commonspec.getLogger().debug("PolicyId obtained: {}", policyId);
+                        endPointResource = endPoint + resourcePrefix + policyId;
+                    }
+                }
+            }
+
+            restSpec.sendRequestNoDataTable("GET", endPointResource, loginInfo, null, null);
+
+            if (commonspec.getResponse().getStatusCode() != 200) {
+                // Send POST request
+                restSpec.sendRequest("POST", endPoint, loginInfo, baseData, type, modifications);
+                try {
+                    if (commonspec.getResponse().getStatusCode() == 409) {
+                        commonspec.getLogger().warn("The resource {} already exists", resourceId);
+                    } else {
+                        try {
+                            assertThat(commonspec.getResponse().getStatusCode()).isEqualTo(expectedStatusCreate);
+                        } catch (AssertionError e) {
+                            commonspec.getLogger().warn("Error creating Resource {}: {}", resourceId, commonspec.getResponse().getResponse());
+                            throw e;
+                        }
+                        commonspec.getLogger().warn("Resource {} created", resourceId);
+                    }
+                } catch (Exception e) {
+                    commonspec.getLogger().warn("Error creating user {}: {}", resourceId, commonspec.getResponse().getResponse());
+                    throw e;
+                }
+            } else {
+                commonspec.getLogger().warn("{}:{} already exist", resource, resourceId);
+                if (resource.equals("policy") && commonspec.getResponse().getStatusCode() == 200) {
+                    if (doesNotExist) {
+                        // Policy already exists
+                        commonspec.getLogger().warn("Policy {} already exist - not created", resourceId);
+                    } else {
+                        // Delete policy if exists
+                        restSpec.sendRequest("DELETE", endPointResource, loginInfo, baseData, type, modifications);
+                        commonspec.getLogger().warn("Policy {} deleted", resourceId);
+
+                        try {
+                            assertThat(commonspec.getResponse().getStatusCode()).isIn(expectedStatusDelete);
+                        } catch (AssertionError e) {
+                            commonspec.getLogger().warn("Error deleting Policy {}: {}", resourceId, commonspec.getResponse().getResponse());
+                            throw e;
+                        }
+                        createResourceIfNotExistKeos(resource, resourceId, tenantOrig, tenantLoginInfo, endPoint, loginInfo, doesNotExist, baseData, type, modifications);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            commonspec.getLogger().error("Rest Host or Rest Port are not initialized {}{}", commonspec.getRestHost(), commonspec.getRestPort());
+            throw e;
+        }
+    }
+
+    private String getResourcePrefix(String resource) {
+        switch (resource) {
+            case "policy":
+                return "?pid=";
+            case "user":
+                return "?uid=";
+            case "group":
+                return "?gid=";
+            default:
+                return "";
+        }
+    }
+
+    private String getResourceEndpoint(String resource) {
+        switch (resource) {
+            case "policy":
+                return "/baas/management/policy";
+            case "user":
+                return "/baas/management/user";
+            case "group":
+                return "/baas/management/group";
+            default:
+                return "";
+        }
+    }
+
+    private String getPolicyIdFromResponse(String response, String policyName, boolean isManagementBaas) throws Exception {
+        if (isManagementBaas) {
+            commonspec.runLocalCommand("echo '" + response + "' | jq '.list[] | select (.name == \"" + policyName + "\").pid' | sed s/\\\"//g");
+            return commonspec.getCommandResult().trim();
+        } else {
+            commonspec.runLocalCommand("echo '" + response + "' | jq '.list[] | select (.name == \"" + policyName + "\").id' | sed s/\\\"//g");
+            String policyId = commonspec.getCommandResult().trim();
+            if (!policyId.equals("")) {
+                return policyId;
+            } else {
+                commonspec.runLocalCommand("echo '" + response + "' | jq '.[] | select (.name == \"" + policyName + "\").id' | sed s/\\\"//g");
+                return commonspec.getCommandResult().trim();
+            }
         }
     }
 
@@ -279,6 +390,14 @@ public class GosecSpec extends BaseGSpec {
      */
     @When("^I delete '(policy|user|group)' '(.+?)'( from tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( using API service path '(.+?)')?( with user and password '(.+:.+?)')? if it exists$")
     public void deleteUserIfExists(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String endPoint, String loginInfo) throws Exception {
+        if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
+            deleteResourceIfExistsKeos(resource, resourceId, tenantOrig, tenantLoginInfo, endPoint, loginInfo);
+        } else {
+            deleteResourceIfExistsDcos(resource, resourceId, tenantOrig, tenantLoginInfo, endPoint, loginInfo);
+        }
+    }
+
+    public void deleteResourceIfExistsDcos(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String endPoint, String loginInfo) throws Exception {
         Integer[] expectedStatusDelete = {200, 204};
         String endPointResource = "";
         String endPointPolicy = "/service/gosecmanagement" + ThreadProperty.get("API_POLICY");
@@ -328,35 +447,70 @@ public class GosecSpec extends BaseGSpec {
             if (resource.equals("policy")) {
                 restSpec.sendRequestNoDataTable("GET", endPointPolicies, loginInfo, null, null);
                 if (commonspec.getResponse().getStatusCode() == 200) {
-                    if (managementBaasVersion != null) {
-                        commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + "' | jq '.list[] | select (.name == \"" + resourceId + "\").pid' | sed s/\\\"//g");
-                        String policyId = commonspec.getCommandResult().trim();
-                        if (!policyId.equals("")) {
-                            commonspec.getLogger().debug("PolicyId obtained: {}", policyId);
-                            endPointResource = endPointPolicy + policyId;
-                        } else {
-                            endPointResource = endPointPolicy + "thisPolicyDoesNotExistId";
-                        }
+                    String policyId = getPolicyIdFromResponse(commonspec.getResponse().getResponse(), resourceId, managementBaasVersion != null);
+                    if (!policyId.equals("")) {
+                        commonspec.getLogger().debug("PolicyId obtained: {}", policyId);
+                        endPointResource = endPointPolicy + policyId;
                     } else {
-                        commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + "' | jq '.list[] | select (.name == \"" + resourceId + "\").id' | sed s/\\\"//g");
-                        String policyId = commonspec.getCommandResult().trim();
-                        if (!policyId.equals("")) {
-                            commonspec.getLogger().debug("PolicyId obtained: {}", policyId);
-                            endPointResource = endPointPolicy + policyId;
-                        } else {
-                            commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + "' | jq '.[] | select (.name == \"" + resourceId + "\").id' | sed s/\\\"//g");
-                            policyId = commonspec.getCommandResult().trim();
-                            if (!policyId.equals("")) {
-                                commonspec.getLogger().debug("PolicyId obtained: {}", policyId);
-                                endPointResource = endPointPolicy + policyId;
-                            } else {
-                                endPointResource = endPointPolicy + "thisPolicyDoesNotExistId";
-                            }
-                        }
+                        endPointResource = endPointPolicy + "thisPolicyDoesNotExistId";
                     }
                 }
             } else {
                 endPointResource = endPoint + resourceId;
+            }
+
+            restSpec.sendRequestNoDataTable("GET", endPointResource, loginInfo, null, null);
+
+            if (commonspec.getResponse().getStatusCode() == 200) {
+                // Delete resource if exists
+                restSpec.sendRequestNoDataTable("DELETE", endPointResource, loginInfo, null, null);
+                commonspec.getLogger().warn("Resource {} deleted", resourceId);
+
+                try {
+                    assertThat(commonspec.getResponse().getStatusCode()).isIn(expectedStatusDelete);
+                } catch (AssertionError e) {
+                    commonspec.getLogger().warn("Error deleting Resource {}: {}", resourceId, commonspec.getResponse().getResponse());
+                    throw e;
+                }
+            } else {
+                commonspec.getLogger().warn("Resource {} with id {} not found so it's not deleted", resource, resourceId);
+            }
+        } catch (Exception e) {
+            commonspec.getLogger().error("Rest Host or Rest Port are not initialized {}: {}", commonspec.getRestHost(), commonspec.getRestPort());
+            throw e;
+        }
+    }
+
+    public void deleteResourceIfExistsKeos(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String endPoint, String loginInfo) throws Exception {
+        Integer[] expectedStatusDelete = {200, 204};
+        String endPointResource = "";
+        String resourcePrefix = getResourcePrefix(resource);
+        String endPointPolicies = "/baas/management/policies";
+
+        if (tenantOrig != null) {
+            // Set REST connection
+            commonspec.setCCTConnection(tenantOrig, tenantLoginInfo);
+        }
+
+        if (endPoint == null) {
+            endPoint = getResourceEndpoint(resource);
+        }
+        endPointResource = endPoint + resourcePrefix + resourceId;
+
+        try {
+            assertThat(commonspec.getRestHost().isEmpty() || commonspec.getRestPort().isEmpty());
+
+            if (resource.equals("policy")) {
+                restSpec.sendRequestNoDataTable("GET", endPointPolicies, loginInfo, null, null);
+                if (commonspec.getResponse().getStatusCode() == 200) {
+                    String policyId = getPolicyIdFromResponse(commonspec.getResponse().getResponse(), resourceId, true);
+                    if (!policyId.equals("")) {
+                        commonspec.getLogger().debug("PolicyId obtained: {}", policyId);
+                        endPointResource = endPoint + resourcePrefix + policyId;
+                    } else {
+                        endPointResource = endPoint + resourcePrefix + "thisPolicyDoesNotExistId";
+                    }
+                }
             }
 
             restSpec.sendRequestNoDataTable("GET", endPointResource, loginInfo, null, null);
@@ -391,22 +545,39 @@ public class GosecSpec extends BaseGSpec {
      * @param envVar          : thread variable where to store result
      * @throws Exception
      */
-    @When("^I get id from( tag)? policy with name '(.+?)'( in tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( with user and password '(.+:.+?)')? and save it in environment variable '(.+?)'$")
-    public void getPolicyId(String tag, String policyName, String tenantOrig, String tenantLoginInfo, String loginInfo, String envVar) throws Exception {
+    @When("^I get id from( tag)? policy with name '(.+?)'( in tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')? and save it in environment variable '(.+?)'$")
+    public void getPolicyId(String tag, String policyName, String tenantOrig, String tenantLoginInfo, String envVar) throws Exception {
+        if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
+            getPolicyIdKeos(tag, policyName, tenantOrig, tenantLoginInfo, envVar);
+        } else {
+            getPolicyIdDcos(tag, policyName, tenantOrig, tenantLoginInfo, envVar);
+        }
+    }
+
+    private void getPolicyIdDcos(String tag, String policyName, String tenantOrig, String tenantLoginInfo, String envVar) throws Exception {
         String endPoint = "/service/gosecmanagement" + ThreadProperty.get("API_POLICIES");
         String managementBaasVersion = ThreadProperty.get("gosec-management-baas_version");
-
         if (managementBaasVersion != null) {
             endPoint = "/service/gosec-management-baas/management/policies";
         }
-
         if (tag != null) {
             endPoint = "/service/gosecmanagement" + ThreadProperty.get("API_TAGS");
             if (managementBaasVersion != null) {
                 endPoint = "/service/gosec-management-baas/management/policies/tags";
             }
         }
+        getPolicyIdCommon(endPoint, policyName, tenantOrig, tenantLoginInfo, envVar);
+    }
 
+    private void getPolicyIdKeos(String tag, String policyName, String tenantOrig, String tenantLoginInfo, String envVar) throws Exception {
+        String endPoint = "/baas/management/policies";
+        if (tag != null) {
+            endPoint = "/baas/management/policies/tags";
+        }
+        getPolicyIdCommon(endPoint, policyName, tenantOrig, tenantLoginInfo, envVar);
+    }
+
+    private void getPolicyIdCommon(String endPoint, String policyName, String tenantOrig, String tenantLoginInfo, String envVar) throws Exception {
         if (tenantOrig != null) {
             // Set REST connection
             commonspec.setCCTConnection(tenantOrig, tenantLoginInfo);
@@ -415,22 +586,11 @@ public class GosecSpec extends BaseGSpec {
         assertThat(commonspec.getRestHost().isEmpty() || commonspec.getRestPort().isEmpty());
         restSpec.sendRequestNoDataTable("GET", endPoint, null, null, null);
         if (commonspec.getResponse().getStatusCode() == 200) {
-            if (managementBaasVersion != null) {
-                commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + "' | jq '.list[] | select (.name == \"" + policyName + "\").pid' | sed s/\\\"//g");
-                commonspec.runCommandLoggerAndEnvVar(0, envVar, Boolean.TRUE);
-                if (ThreadProperty.get(envVar) == null || ThreadProperty.get(envVar).trim().equals("")) {
-                    fail("Error obtaining ID from policy " + policyName);
-                }
+            String policyId = getPolicyIdFromResponse(commonspec.getResponse().getResponse(), policyName, true);
+            if (policyId.equals("")) {
+                fail("Error obtaining ID from policy " + policyName);
             } else {
-                commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + "' | jq '.list[] | select (.name == \"" + policyName + "\").id' | sed s/\\\"//g");
-                commonspec.runCommandLoggerAndEnvVar(0, envVar, Boolean.TRUE);
-                if (ThreadProperty.get(envVar) == null || ThreadProperty.get(envVar).trim().equals("")) {
-                    commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + "' | jq '.[] | select (.name == \"" + policyName + "\").id' | sed s/\\\"//g");
-                    commonspec.runCommandLoggerAndEnvVar(0, envVar, Boolean.TRUE);
-                    if (ThreadProperty.get(envVar) == null || ThreadProperty.get(envVar).trim().equals("")) {
-                        fail("Error obtaining ID from policy " + policyName);
-                    }
-                }
+                ThreadProperty.set(envVar, policyId);
             }
         } else {
             if (commonspec.getResponse().getStatusCode() == 404) {
@@ -601,8 +761,16 @@ public class GosecSpec extends BaseGSpec {
      * @param fileName        : file name where to store result (OPTIONAL)
      * @throws Exception
      */
-    @When("^I get json from( tag)? policy with name '(.+?)'( in tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( with user and password '(.+:.+?)')? and save it( in environment variable '(.*?)')?( in file '(.*?)')?$")
-    public void getPolicyJson(String tag, String policyName, String tenantOrig, String tenantLoginInfo, String loginInfo, String envVar, String fileName) throws Exception {
+    @When("^I get json from( tag)? policy with name '(.+?)'( in tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')? and save it( in environment variable '(.*?)')?( in file '(.*?)')?$")
+    public void getPolicyJson(String tag, String policyName, String tenantOrig, String tenantLoginInfo, String envVar, String fileName) throws Exception {
+        if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
+            getPolicyJsonKeos(tag, policyName, tenantOrig, tenantLoginInfo, envVar, fileName);
+        } else {
+            getPolicyJsonDcos(tag, policyName, tenantOrig, tenantLoginInfo, envVar, fileName);
+        }
+    }
+
+    private void getPolicyJsonDcos(String tag, String policyName, String tenantOrig, String tenantLoginInfo, String envVar, String fileName) throws Exception {
         String endPoint = "/service/gosecmanagement/api/policy";
         String newEndPoint = "/service/gosecmanagement/api/policies";
         String getEndPoint = "/service/gosecmanagement/api/policy/";
@@ -635,88 +803,94 @@ public class GosecSpec extends BaseGSpec {
         assertThat(commonspec.getRestHost().isEmpty() || commonspec.getRestPort().isEmpty());
         restSpec.sendRequestNoDataTable("GET", endPoint, null, null, null);
         if (commonspec.getResponse().getStatusCode() == 200) {
-            if (managementBaasVersion != null) {
-                commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + "' | jq '.list[] | select (.name == \"" + policyName + "\").pid' | sed s/\\\"//g");
-            } else {
-                commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + "' | jq '.list[] | select (.name == \"" + policyName + "\").id' | sed s/\\\"//g");
-                if (commonspec.getCommandResult().trim().equals("")) {
-                    commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + "' | jq '.[] | select (.name == \"" + policyName + "\").id' | sed s/\\\"//g");
-                }
-            }
-            if (commonspec.getCommandResult().equals("")) {
+            String policyId = getPolicyIdFromResponse(commonspec.getResponse().getResponse(), policyName, managementBaasVersion != null);
+            if (policyId.equals("")) {
                 fail("Policy does not exist -> " + policyName);
             }
-
-            restSpec.sendRequestNoDataTable("GET", getEndPoint + commonspec.getCommandResult(), null, null, null);
-
-            if (envVar != null) {
-                ThreadProperty.set(envVar, commonspec.getResponse().getResponse());
-
-                if (ThreadProperty.get(envVar) == null || ThreadProperty.get(envVar).trim().equals("")) {
-                    fail("Error obtaining JSON from policy " + policyName);
-                }
+            restSpec.sendRequestNoDataTable("GET", getEndPoint + policyId, null, null, null);
+            if (commonspec.getResponse().getStatusCode() == 200) {
+                savePolicyJsonInEnvVarAndFile(commonspec.getResponse().getResponse(), policyName, envVar, fileName);
+            } else {
+                fail("Error obtaining policy with ID {} from gosecmanagement (Response code = " + commonspec.getResponse().getStatusCode() + ")", policyId);
             }
-
-            if (fileName != null) {
-                // Create file (temporary) and set path to be accessible within test
-                File tempDirectory = new File(System.getProperty("user.dir") + "/target/test-classes/");
-                String absolutePathFile = tempDirectory.getAbsolutePath() + "/" + fileName;
-                commonspec.getLogger().debug("Creating file {} in 'target/test-classes'", absolutePathFile);
-                // Note that this Writer will delete the file if it exists
-                Writer out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(absolutePathFile), StandardCharsets.UTF_8));
-                try {
-                    out.write(commonspec.getResponse().getResponse());
-                } catch (Exception e) {
-                    commonspec.getLogger().error("Custom file {} hasn't been created:\n{}", absolutePathFile, e.toString());
-                } finally {
-                    out.close();
-                }
-
-                Assertions.assertThat(new File(absolutePathFile).isFile());
-            }
-
         } else {
             if (commonspec.getResponse().getStatusCode() == 404) {
                 commonspec.getLogger().warn("Error 404 accessing endpoint {}: checking the new endpoint for Gosec 1.1.1", endPoint);
                 restSpec.sendRequestNoDataTable("GET", newEndPoint, null, null, null);
                 if (commonspec.getResponse().getStatusCode() == 200) {
-                    commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + "' | jq '.list[] | select (.name == \"" + policyName + "\").id' | sed s/\\\"//g");
-                    if (commonspec.getCommandResult().trim().equals("")) {
-                        commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + "' | jq '.[] | select (.name == \"" + policyName + "\").id' | sed s/\\\"//g");
+                    String policyId = getPolicyIdFromResponse(commonspec.getResponse().getResponse(), policyName, false);
+                    restSpec.sendRequestNoDataTable("GET", "/service/gosecmanagement/api/policy?id=" + policyId, null, null, null);
+                    if (commonspec.getResponse().getStatusCode() == 200) {
+                        savePolicyJsonInEnvVarAndFile(commonspec.getResponse().getResponse(), policyName, envVar, fileName);
+                    } else {
+                        fail("Error obtaining policy with ID {} from gosecmanagement (Response code = " + commonspec.getResponse().getStatusCode() + ")", policyId);
                     }
-                    restSpec.sendRequestNoDataTable("GET", "/service/gosecmanagement/api/policy?id=" + commonspec.getCommandResult(), null, null, null);
-
-                    if (envVar != null) {
-                        ThreadProperty.set(envVar, commonspec.getResponse().getResponse());
-                        if (ThreadProperty.get(envVar) == null || ThreadProperty.get(envVar).trim().equals("")) {
-                            fail("Error obtaining JSON from policy " + policyName);
-                        }
-                    }
-
-                    if (fileName != null) {
-                        // Create file (temporary) and set path to be accessible within test
-                        File tempDirectory = new File(System.getProperty("user.dir") + "/target/test-classes/");
-                        String absolutePathFile = tempDirectory.getAbsolutePath() + "/" + fileName;
-                        commonspec.getLogger().debug("Creating file {} in 'target/test-classes'", absolutePathFile);
-                        // Note that this Writer will delete the file if it exists
-                        Writer out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(absolutePathFile), StandardCharsets.UTF_8));
-                        try {
-                            out.write(commonspec.getResponse().getResponse());
-                        } catch (Exception e) {
-                            commonspec.getLogger().error("Custom file {} hasn't been created:\n{}", absolutePathFile, e.toString());
-                        } finally {
-                            out.close();
-                        }
-
-                        Assertions.assertThat(new File(absolutePathFile).isFile());
-                    }
-
                 } else {
                     fail("Error obtaining policies from gosecmanagement {} (Response code = " + commonspec.getResponse().getStatusCode() + ")", errorMessage);
                 }
             } else {
                 fail("Error obtaining policies from gosecmanagement {} (Response code = " + commonspec.getResponse().getStatusCode() + ")", errorMessage2);
             }
+        }
+    }
+
+    private void getPolicyJsonKeos(String tag, String policyName, String tenantOrig, String tenantLoginInfo, String envVar, String fileName) throws Exception {
+        String endPoint = "/baas/management/policy";
+        String endPointPolicies = "/baas/management/policies";
+
+        if (tag != null) {
+            endPoint = "/baas/management/policy/tags";
+            endPointPolicies = "/baas/management/policies/tags";
+        }
+
+        if (tenantOrig != null) {
+            // Set REST connection
+            commonspec.setCCTConnection(tenantOrig, tenantLoginInfo);
+        }
+
+        assertThat(commonspec.getRestHost().isEmpty() || commonspec.getRestPort().isEmpty());
+        restSpec.sendRequestNoDataTable("GET", endPointPolicies, null, null, null);
+        if (commonspec.getResponse().getStatusCode() == 200) {
+            String policyId = getPolicyIdFromResponse(commonspec.getResponse().getResponse(), policyName, true);
+            if (policyId.equals("")) {
+                fail("Policy does not exist -> " + policyName);
+            }
+            restSpec.sendRequestNoDataTable("GET", endPoint + "?pid=" + policyId, null, null, null);
+
+            if (commonspec.getResponse().getStatusCode() == 200) {
+                savePolicyJsonInEnvVarAndFile(commonspec.getResponse().getResponse(), policyName, envVar, fileName);
+            } else {
+                fail("Error obtaining policy with ID {} from gosecmanagement (Response code = " + commonspec.getResponse().getStatusCode() + ")", policyId);
+            }
+        } else {
+            fail("Error obtaining policies from gosecmanagement (Response code = " + commonspec.getResponse().getStatusCode() + ")");
+        }
+    }
+
+    private void savePolicyJsonInEnvVarAndFile(String response, String policyName, String envVar, String fileName) throws IOException {
+        if (envVar != null) {
+            ThreadProperty.set(envVar, response);
+
+            if (ThreadProperty.get(envVar) == null || ThreadProperty.get(envVar).trim().equals("")) {
+                fail("Error obtaining JSON from policy " + policyName);
+            }
+        }
+        if (fileName != null) {
+            // Create file (temporary) and set path to be accessible within test
+            File tempDirectory = new File(System.getProperty("user.dir") + "/target/test-classes/");
+            String absolutePathFile = tempDirectory.getAbsolutePath() + "/" + fileName;
+            commonspec.getLogger().debug("Creating file {} in 'target/test-classes'", absolutePathFile);
+            // Note that this Writer will delete the file if it exists
+            Writer out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(absolutePathFile), StandardCharsets.UTF_8));
+            try {
+                out.write(response);
+            } catch (Exception e) {
+                commonspec.getLogger().error("Custom file {} hasn't been created:\n{}", absolutePathFile, e.toString());
+            } finally {
+                out.close();
+            }
+
+            Assertions.assertThat(new File(absolutePathFile).isFile());
         }
     }
 
@@ -831,6 +1005,14 @@ public class GosecSpec extends BaseGSpec {
      */
     @When("^I update '(policy|user|group|tenant)' '(.+?)'( in tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( with user and password '(.+:.+?)')? based on '([^:]+?)'( as '(json|string|gov)')? with:$")
     public void updateResource(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String loginInfo, String baseData, String type, DataTable modifications) throws Exception {
+        if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
+            updateResourceKeos(resource, resourceId, tenantOrig, tenantLoginInfo, loginInfo, baseData, type, modifications);
+        } else {
+            updateResourceDcos(resource, resourceId, tenantOrig, tenantLoginInfo, loginInfo, baseData, type, modifications);
+        }
+    }
+
+    private void updateResourceDcos(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String loginInfo, String baseData, String type, DataTable modifications) throws Exception {
         Integer[] expectedStatusUpdate = {200, 201, 204};
         String endPointPolicy = "/service/gosecmanagement" + ThreadProperty.get("API_POLICY");
         String endPointPolicies = "/service/gosecmanagement" + ThreadProperty.get("API_POLICIES");
@@ -876,29 +1058,12 @@ public class GosecSpec extends BaseGSpec {
             if (resource.equals("policy")) {
                 restSpec.sendRequestNoDataTable("GET", endPointPolicies, loginInfo, null, null);
                 if (commonspec.getResponse().getStatusCode() == 200) {
-                    if (managementBaasVersion != null) {
-                        commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + "' | jq '.list[] | select (.name == \"" + resourceId + "\").pid' | sed s/\\\"//g");
-                        String policyId = commonspec.getCommandResult().trim();
-                        if (!policyId.equals("")) {
-                            commonspec.getLogger().debug("PolicyId obtained: {}", policyId);
-                            endPointResource = endPointPolicy + policyId;
-                        }
+                    String policyId = getPolicyIdFromResponse(commonspec.getResponse().getResponse(), resourceId, managementBaasVersion != null);
+                    if (!policyId.equals("")) {
+                        commonspec.getLogger().debug("PolicyId obtained: {}", policyId);
+                        endPointResource = endPointPolicy + policyId;
                     } else {
-                        commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + "' | jq '.list[] | select (.name == \"" + resourceId + "\").id' | sed s/\\\"//g");
-                        String policyId = commonspec.getCommandResult().trim();
-                        if (!policyId.equals("")) {
-                            commonspec.getLogger().debug("PolicyId obtained: {}", policyId);
-                            endPointResource = endPointPolicy + policyId;
-                        } else {
-                            commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + "' | jq '.[] | select (.name == \"" + resourceId + "\").id' | sed s/\\\"//g");
-                            policyId = commonspec.getCommandResult().trim();
-                            if (!policyId.equals("")) {
-                                commonspec.getLogger().debug("PolicyId obtained: {}", policyId);
-                                endPointResource = endPointPolicy + policyId;
-                            } else {
-                                endPointResource = endPointPolicy + "thisPolicyDoesNotExistId";
-                            }
-                        }
+                        endPointResource = endPointPolicy + "thisPolicyDoesNotExistId";
                     }
                 }
             } else {
@@ -910,6 +1075,67 @@ public class GosecSpec extends BaseGSpec {
             if (commonspec.getResponse().getStatusCode() == 200) {
                 if (resource.equals("tenant")) {
                     restSpec.sendRequest("PATCH", endPointResource, loginInfo, baseData, type, modifications);
+                } else {
+                    restSpec.sendRequest("PUT", endPointResource, loginInfo, baseData, type, modifications);
+                }
+                commonspec.getLogger().warn("Resource {}:{} updated", resource, resourceId);
+
+                try {
+                    assertThat(commonspec.getResponse().getStatusCode()).isIn(expectedStatusUpdate);
+                } catch (AssertionError e) {
+                    commonspec.getLogger().error("Error updating Resource {} {}: {}", resource, resourceId, commonspec.getResponse().getResponse());
+                    throw e;
+                }
+            } else {
+                commonspec.getLogger().error("Resource {}:{} not found so it's not updated", resource, resourceId);
+            }
+        } catch (Exception e) {
+            commonspec.getLogger().error("Rest Host or Rest Port are not initialized {}: {}", commonspec.getRestHost(), commonspec.getRestPort());
+            throw e;
+        }
+    }
+
+    private void updateResourceKeos(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String loginInfo, String baseData, String type, DataTable modifications) throws Exception {
+        Integer[] expectedStatusUpdate = {200, 201, 204};
+        String resourcePrefix = getResourcePrefix(resource);
+        String endPointPolicies = "/baas/management/policies";
+        String endPoint = getResourceEndpoint(resource);
+        String endPointResource = endPoint + resourcePrefix + resourceId;;
+
+
+        if (tenantOrig != null) {
+            // Set REST connection
+            commonspec.setCCTConnection(tenantOrig, tenantLoginInfo);
+        }
+
+        if (resource.equals("tenant")) {
+            //TODO K8s
+            fail("Tenant resource not supported yet in K8s spec");
+        }
+
+        try {
+            assertThat(commonspec.getRestHost().isEmpty() || commonspec.getRestPort().isEmpty());
+
+            if (resource.equals("policy")) {
+                restSpec.sendRequestNoDataTable("GET", endPointPolicies, loginInfo, null, null);
+                if (commonspec.getResponse().getStatusCode() == 200) {
+                    String policyId = getPolicyIdFromResponse(commonspec.getResponse().getResponse(), resourceId, true);
+                    if (!policyId.equals("")) {
+                        commonspec.getLogger().debug("PolicyId obtained: {}", policyId);
+                        endPointResource = endPoint + resourcePrefix + policyId;
+                    } else {
+                        endPointResource = endPoint + resourcePrefix + "thisPolicyDoesNotExistId";
+                    }
+                }
+            }
+
+            restSpec.sendRequestNoDataTable("GET", endPointResource, loginInfo, null, null);
+
+            if (commonspec.getResponse().getStatusCode() == 200) {
+                if (resource.equals("tenant")) {
+                    //TODO K8s
+                    fail("Tenant resource not supported yet in K8s spec");
+                    //restSpec.sendRequest("PATCH", endPointResource, loginInfo, baseData, type, modifications);
                 } else {
                     restSpec.sendRequest("PUT", endPointResource, loginInfo, baseData, type, modifications);
                 }
@@ -1019,6 +1245,14 @@ public class GosecSpec extends BaseGSpec {
      */
     @When("^I create custom user '(.+?)'( in tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( generating keytab)?( generating certificate)?( assigned to groups '(.+?)')?$")
     public void createUserResource(String userName, String tenantOrig, String tenantLoginInfo, String keytab, String certificate, String groups) throws Exception {
+        if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
+            createUserResourceKeos(userName, tenantOrig, tenantLoginInfo, keytab, certificate, groups);
+        } else {
+            createUserResourceDcos(userName, tenantOrig, tenantLoginInfo, keytab, certificate, groups);
+        }
+    }
+
+    private void createUserResourceDcos(String userName, String tenantOrig, String tenantLoginInfo, String keytab, String certificate, String groups) throws Exception {
         String managementVersion = ThreadProperty.get("gosec-management_version");
         String managementBaasVersion = ThreadProperty.get("gosec-management-baas_version");
         String endPoint = "/service/gosecmanagement" + ThreadProperty.get("API_USER");
@@ -1091,6 +1325,32 @@ public class GosecSpec extends BaseGSpec {
 
     }
 
+    private void createUserResourceKeos(String userName, String tenantOrig, String tenantLoginInfo, String keytab, String certificate, String groups) throws Exception {
+        String endPoint = "/baas/management/user";
+        String endPointResource = "";
+        String uid = userName.replaceAll("\\s+", ""); //delete white spaces
+        String data = generateBaasUserJson(uid, userName, groups, keytab, certificate);
+        if (tenantOrig != null) {
+            // Set REST connection
+            commonspec.setCCTConnection(tenantOrig, tenantLoginInfo);
+        }
+        try {
+            assertThat(commonspec.getRestHost().isEmpty() || commonspec.getRestPort().isEmpty());
+            //check if user exists and build json
+            endPointResource = endPoint + "?uid=" + uid;
+            restSpec.sendRequestNoDataTable("GET", endPointResource, null, null, null);
+            if (commonspec.getResponse().getStatusCode() != 200) {
+                // Send POST request
+                sendIdentitiesPostRequest("user", userName, data, endPoint);
+            } else {
+                commonspec.getLogger().warn("Custom user:{} already exist", userName);
+            }
+        } catch (Exception e) {
+            commonspec.getLogger().error("Rest Host or Rest Port are not initialized {}{}", commonspec.getRestHost(), commonspec.getRestPort());
+            throw e;
+        }
+    }
+
 
     /**
      * Create custom group in Gosec Management or Gosec Management BaaS
@@ -1104,6 +1364,14 @@ public class GosecSpec extends BaseGSpec {
      */
     @When("^I create custom group '(.+?)'( in tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( assigned to users '(.+?)')?( assigned to groups '(.+?)')?$")
     public void createGroupResource(String groupName, String tenantOrig, String tenantLoginInfo, String users, String groups) throws Exception {
+        if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
+            createGroupResourceKeos(groupName, tenantOrig, tenantLoginInfo, users, groups);
+        } else {
+            createGroupResourceDcos(groupName, tenantOrig, tenantLoginInfo, users, groups);
+        }
+    }
+
+    private void createGroupResourceDcos(String groupName, String tenantOrig, String tenantLoginInfo, String users, String groups) throws Exception {
         String managementVersion = ThreadProperty.get("gosec-management_version");
         String managementBaasVersion = ThreadProperty.get("gosec-management-baas_version");
         String endPoint = "/service/gosecmanagement" + ThreadProperty.get("API_GROUP");
@@ -1174,6 +1442,34 @@ public class GosecSpec extends BaseGSpec {
             throw e;
         }
 
+    }
+
+    private void createGroupResourceKeos(String groupName, String tenantOrig, String tenantLoginInfo, String users, String groups) throws Exception {
+        String endPoint = "/baas/management/group";
+        String endPointResource = "";
+        String gid = groupName.replaceAll("\\s+", ""); //delete white spaces
+        String data = generateBaasGroupJson(gid, groupName, users, groups);
+
+        if (tenantOrig != null) {
+            // Set REST connection
+            commonspec.setCCTConnection(tenantOrig, tenantLoginInfo);
+        }
+
+        try {
+            assertThat(commonspec.getRestHost().isEmpty() || commonspec.getRestPort().isEmpty());
+            //check if user exists and build json
+            endPointResource = endPoint + "?gid=" + gid;
+            restSpec.sendRequestNoDataTable("GET", endPointResource, null, null, null);
+            if (commonspec.getResponse().getStatusCode() != 200) {
+                // Send POST request
+                sendIdentitiesPostRequest("group", groupName, data, endPoint);
+            } else {
+                commonspec.getLogger().warn("Custom group:{} already exist", groupName);
+            }
+        } catch (Exception e) {
+            commonspec.getLogger().error("Rest Host or Rest Port are not initialized {}{}", commonspec.getRestHost(), commonspec.getRestPort());
+            throw e;
+        }
     }
 
     private String generateManagementGroupJson(String gid, String groupName, String users, String groups, Boolean addSourceType) {
@@ -1321,20 +1617,35 @@ public class GosecSpec extends BaseGSpec {
 
     @When("^I get version of service '(.+?)' with id '(.+?)'( in tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')? and save it in environment variable '(.+?)'$")
     public void getServiceVersion(String serviceType, String serviceId, String tenant, String tenantLoginInfo, String envVar) throws Exception {
+        if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
+            getServiceVersionKeos(serviceType, serviceId, tenant, tenantLoginInfo, envVar);
+        } else {
+            getServiceVersionDcos(serviceType, serviceId, tenant, tenantLoginInfo, envVar);
+        }
+    }
+
+    public void getServiceVersionDcos(String serviceType, String serviceId, String tenant, String tenantLoginInfo, String envVar) throws Exception {
         String endpoint = "/service/gosecmanagement/api/service";
         String gosecVersion = ThreadProperty.get("gosec-management_version");
         String managementBaasVersion = ThreadProperty.get("gosec-management-baas_version");
-
-        if (tenant != null) {
-            commonspec.setCCTConnection(tenant, tenantLoginInfo);
-        }
         if (managementBaasVersion != null) {
             endpoint = "/service/gosec-management-baas/management/services";
         }
+        getServiceVersionCommon(endpoint, serviceType, serviceId, tenant, tenantLoginInfo, envVar, gosecVersion, managementBaasVersion != null);
+    }
 
+    public void getServiceVersionKeos(String serviceType, String serviceId, String tenant, String tenantLoginInfo, String envVar) throws Exception {
+        String endpoint = "/baas/management/services";
+        getServiceVersionCommon(endpoint, serviceType, serviceId, tenant, tenantLoginInfo, envVar, "N/A", true);
+    }
+
+    private void getServiceVersionCommon(String endpoint, String serviceType, String serviceId, String tenant, String tenantLoginInfo, String envVar, String gosecVersion, boolean isManagementBaas) throws Exception {
+        if (tenant != null) {
+            commonspec.setCCTConnection(tenant, tenantLoginInfo);
+        }
         restSpec.sendRequestNoDataTable("GET", endpoint, null, null, null);
         if (commonspec.getResponse().getStatusCode() == 200) {
-            if (managementBaasVersion != null) {
+            if (isManagementBaas) {
                 miscSpec.saveElementEnvironment(null, "$.[?(@.serviceType == \"" + serviceType + "\")].versionList[*]", "BDT_PLUGINS");
                 String bdtPlugins = ThreadProperty.get("BDT_PLUGINS");
                 commonspec.runLocalCommand("echo '" + bdtPlugins + "' | jq '.[] | select (.serviceList[].name == \"" + serviceId + "\").version' | tr -d '\"'");

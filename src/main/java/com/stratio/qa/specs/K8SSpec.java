@@ -19,6 +19,7 @@ package com.stratio.qa.specs;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import com.stratio.qa.utils.GosecSSOUtils;
 import com.stratio.qa.utils.ThreadProperty;
 import cucumber.api.java.en.Given;
 import cucumber.api.java.en.Then;
@@ -27,11 +28,13 @@ import io.cucumber.datatable.DataTable;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.api.model.apps.StatefulSet;
+import org.json.JSONObject;
 import org.testng.Assert;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -65,36 +68,52 @@ public class K8SSpec extends BaseGSpec {
         commonspec.kubernetesClient.connect(kubeConfigPath);
     }
 
-    @When("^I get (pods|configmaps|serviceaccounts|replicasets|secrets|clusterroles|clusterrolebindings|statefulsets|roles|rolebindings|customresourcedefinitions|deployments|services)( in namespace '(.+?)')? and save it in environment variable '(.+?)'$")
+    @When("^I get (pods|configmaps|serviceaccounts|replicasets|secrets|clusterroles|clusterrolebindings|statefulsets|roles|rolebindings|customresourcedefinitions|deployments|services|ingress)( in namespace '(.+?)')? and save it in environment variable '(.+?)'$")
     public void getList(String type, String namespace, String envVar) {
         String response = null;
         switch (type) {
-            case "pods":    response = commonspec.kubernetesClient.getNamespacePods(namespace);
-                            break;
-            case "configmaps":  response = commonspec.kubernetesClient.getConfigMapList(namespace);
-                                break;
-            case "serviceaccounts": response = commonspec.kubernetesClient.getServiceAccountList(namespace);
-                                    break;
-            case "replicasets":     response = commonspec.kubernetesClient.getReplicaSetList(namespace);
-                                    break;
-            case "secrets":     response = commonspec.kubernetesClient.getSecretsList(namespace);
-                                break;
-            case "clusterroles":    response = commonspec.kubernetesClient.getClusterRoleList(namespace);
-                                    break;
-            case "clusterrolebindings":     response = commonspec.kubernetesClient.getClusterRoleBindingList(namespace);
-                                            break;
-            case "statefulsets":    response = commonspec.kubernetesClient.getStateFulSetList(namespace);
-                                    break;
-            case "roles":   response = commonspec.kubernetesClient.getRoleList(namespace);
-                            break;
-            case "rolebindings":    response = commonspec.kubernetesClient.getRoleBindingList(namespace);
-                                    break;
-            case "customresourcedefinitions":    response = commonspec.kubernetesClient.getCustomResourceDefinitionList();
-                                                break;
-            case "deployments":    response = commonspec.kubernetesClient.getDeploymentList(namespace);
-                                  break;
-            case "services":    response = commonspec.kubernetesClient.getServiceList(namespace);
-                              break;
+            case "pods":
+                response = commonspec.kubernetesClient.getNamespacePods(namespace);
+                break;
+            case "configmaps":
+                response = commonspec.kubernetesClient.getConfigMapList(namespace);
+                break;
+            case "serviceaccounts":
+                response = commonspec.kubernetesClient.getServiceAccountList(namespace);
+                break;
+            case "replicasets":
+                response = commonspec.kubernetesClient.getReplicaSetList(namespace);
+                break;
+            case "secrets":
+                response = commonspec.kubernetesClient.getSecretsList(namespace);
+                break;
+            case "clusterroles":
+                response = commonspec.kubernetesClient.getClusterRoleList(namespace);
+                break;
+            case "clusterrolebindings":
+                response = commonspec.kubernetesClient.getClusterRoleBindingList(namespace);
+                break;
+            case "statefulsets":
+                response = commonspec.kubernetesClient.getStateFulSetList(namespace);
+                break;
+            case "roles":
+                response = commonspec.kubernetesClient.getRoleList(namespace);
+                break;
+            case "rolebindings":
+                response = commonspec.kubernetesClient.getRoleBindingList(namespace);
+                break;
+            case "customresourcedefinitions":
+                response = commonspec.kubernetesClient.getCustomResourceDefinitionList();
+                break;
+            case "deployments":
+                response = commonspec.kubernetesClient.getDeploymentList(namespace);
+                break;
+            case "services":
+                response = commonspec.kubernetesClient.getServiceList(namespace);
+                break;
+            case "ingress":
+                response = commonspec.kubernetesClient.getIngressList(namespace);
+                break;
             default:
         }
         ThreadProperty.set(envVar, response);
@@ -110,36 +129,52 @@ public class K8SSpec extends BaseGSpec {
         assertThat(commonspec.kubernetesClient.checkEventNamespace(not, namespace, type, name, reason, message)).as("There aren't event that contains the message " + message + " in namespace " + namespace).isTrue();
     }
 
-    @When("^I describe (pod|service|deployment|configmap|replicaset|serviceaccount|secret|clusterrole|clusterrolebinding|statefulset|role|rolebinding) with name '(.+?)'( in namespace '(.+?)')?( in '(yaml|json)' format)?( and save it in environment variable '(.*?)')?( and save it in file '(.*?)')?$")
+    @When("^I describe (pod|service|deployment|configmap|replicaset|serviceaccount|secret|clusterrole|clusterrolebinding|statefulset|role|rolebinding|ingress) with name '(.+?)'( in namespace '(.+?)')?( in '(yaml|json)' format)?( and save it in environment variable '(.*?)')?( and save it in file '(.*?)')?$")
     public void describeResource(String type, String name, String namespace, String format, String envVar, String fileName) throws Exception {
         String describeResponse;
         format = (format != null) ? format : "yaml";
         switch (type) {
-            case "pod": describeResponse = commonspec.kubernetesClient.describePodYaml(name, namespace);
-                        break;
-            case "service": describeResponse = commonspec.kubernetesClient.describeServiceYaml(name, namespace);
-                            break;
-            case "deployment": describeResponse = commonspec.kubernetesClient.describeDeploymentYaml(name, namespace);
-                            break;
-            case "configmap":   describeResponse = commonspec.kubernetesClient.describeConfigMap(name, namespace);
-                                break;
-            case "replicaset":  describeResponse = commonspec.kubernetesClient.describeReplicaSet(name, namespace);
-                                break;
-            case "serviceaccount":  describeResponse = commonspec.kubernetesClient.describeServiceAccount(name, namespace);
-                                    break;
-            case "secret":  describeResponse = commonspec.kubernetesClient.describeSecret(name, namespace);
-                            break;
-            case "clusterrole":     describeResponse = commonspec.kubernetesClient.describeClusterRole(name, namespace);
-                                    break;
-            case "clusterrolebinding":  describeResponse = commonspec.kubernetesClient.describeClusterRoleBinding(name, namespace);
-                                        break;
-            case "statefulset":     describeResponse = commonspec.kubernetesClient.describeStateFulSet(name, namespace);
-                                    break;
-            case "role":    describeResponse = commonspec.kubernetesClient.describeRole(name, namespace);
-                            break;
-            case "rolebinding":     describeResponse = commonspec.kubernetesClient.describeRoleBinding(name, namespace);
-                                    break;
-            default:    describeResponse = null;
+            case "pod":
+                describeResponse = commonspec.kubernetesClient.describePodYaml(name, namespace);
+                break;
+            case "service":
+                describeResponse = commonspec.kubernetesClient.describeServiceYaml(name, namespace);
+                break;
+            case "deployment":
+                describeResponse = commonspec.kubernetesClient.describeDeploymentYaml(name, namespace);
+                break;
+            case "configmap":
+                describeResponse = commonspec.kubernetesClient.describeConfigMap(name, namespace);
+                break;
+            case "replicaset":
+                describeResponse = commonspec.kubernetesClient.describeReplicaSet(name, namespace);
+                break;
+            case "serviceaccount":
+                describeResponse = commonspec.kubernetesClient.describeServiceAccount(name, namespace);
+                break;
+            case "secret":
+                describeResponse = commonspec.kubernetesClient.describeSecret(name, namespace);
+                break;
+            case "clusterrole":
+                describeResponse = commonspec.kubernetesClient.describeClusterRole(name, namespace);
+                break;
+            case "clusterrolebinding":
+                describeResponse = commonspec.kubernetesClient.describeClusterRoleBinding(name, namespace);
+                break;
+            case "statefulset":
+                describeResponse = commonspec.kubernetesClient.describeStateFulSet(name, namespace);
+                break;
+            case "role":
+                describeResponse = commonspec.kubernetesClient.describeRole(name, namespace);
+                break;
+            case "rolebinding":
+                describeResponse = commonspec.kubernetesClient.describeRoleBinding(name, namespace);
+                break;
+            case "ingress":
+                describeResponse = commonspec.kubernetesClient.describeIngress(name, namespace);
+                break;
+            default:
+                describeResponse = null;
         }
         if (describeResponse == null) {
             fail("Error obtaining " + type + " information");
@@ -387,12 +422,15 @@ public class K8SSpec extends BaseGSpec {
     @When("^I delete (pod|deployment|service) with name '(.+?)' in namespace '(.+?)'$")
     public void deleteResource(String type, String name, String namespace) {
         switch (type) {
-            case "pod":     commonspec.kubernetesClient.deletePod(name, namespace);
-                            break;
-            case "deployment":  commonspec.kubernetesClient.deleteDeployment(name, namespace);
-                                break;
-            case "service":     commonspec.kubernetesClient.deleteService(name, namespace);
-                                break;
+            case "pod":
+                commonspec.kubernetesClient.deletePod(name, namespace);
+                break;
+            case "deployment":
+                commonspec.kubernetesClient.deleteDeployment(name, namespace);
+                break;
+            case "service":
+                commonspec.kubernetesClient.deleteService(name, namespace);
+                break;
             default:
         }
     }
@@ -411,24 +449,33 @@ public class K8SSpec extends BaseGSpec {
     @When("^I get (pods|deployments|replicasets|services|statefulsets|configmaps|serviceacounts|roles|rolebindings) using the following label filter '(.+?)'( in namespace '(.+?)')? and save it in environment variable '(.+?)'$")
     public void getPodsLabelSelector(String type, String selector, String namespace, String envVar) {
         switch (type) {
-            case "pods":    ThreadProperty.set(envVar, commonspec.kubernetesClient.getPodsFilteredByLabel(selector, namespace));
-                            break;
-            case "deployments":     ThreadProperty.set(envVar, commonspec.kubernetesClient.getDeploymentsFilteredByLabel(selector, namespace));
-                                    break;
-            case "replicasets":     ThreadProperty.set(envVar, commonspec.kubernetesClient.getReplicaSetsFilteredByLabel(selector, namespace));
-                                    break;
-            case "services":     ThreadProperty.set(envVar, commonspec.kubernetesClient.getServicesFilteredByLabel(selector, namespace));
-                                    break;
-            case "statefulsets":     ThreadProperty.set(envVar, commonspec.kubernetesClient.getStateFulSetsFilteredByLabel(selector, namespace));
-                                    break;
-            case "configmaps":     ThreadProperty.set(envVar, commonspec.kubernetesClient.getConfigMapsFilteredByLabel(selector, namespace));
-                                    break;
-            case "serviceaccounts":     ThreadProperty.set(envVar, commonspec.kubernetesClient.getServiceAccountsFilteredByLabel(selector, namespace));
-                                        break;
-            case "roles":     ThreadProperty.set(envVar, commonspec.kubernetesClient.getRolesFilteredByLabel(selector, namespace));
-                              break;
-            case "rolebindings":     ThreadProperty.set(envVar, commonspec.kubernetesClient.getRolesBindingsFilteredByLabel(selector, namespace));
-                              break;
+            case "pods":
+                ThreadProperty.set(envVar, commonspec.kubernetesClient.getPodsFilteredByLabel(selector, namespace));
+                break;
+            case "deployments":
+                ThreadProperty.set(envVar, commonspec.kubernetesClient.getDeploymentsFilteredByLabel(selector, namespace));
+                break;
+            case "replicasets":
+                ThreadProperty.set(envVar, commonspec.kubernetesClient.getReplicaSetsFilteredByLabel(selector, namespace));
+                break;
+            case "services":
+                ThreadProperty.set(envVar, commonspec.kubernetesClient.getServicesFilteredByLabel(selector, namespace));
+                break;
+            case "statefulsets":
+                ThreadProperty.set(envVar, commonspec.kubernetesClient.getStateFulSetsFilteredByLabel(selector, namespace));
+                break;
+            case "configmaps":
+                ThreadProperty.set(envVar, commonspec.kubernetesClient.getConfigMapsFilteredByLabel(selector, namespace));
+                break;
+            case "serviceaccounts":
+                ThreadProperty.set(envVar, commonspec.kubernetesClient.getServiceAccountsFilteredByLabel(selector, namespace));
+                break;
+            case "roles":
+                ThreadProperty.set(envVar, commonspec.kubernetesClient.getRolesFilteredByLabel(selector, namespace));
+                break;
+            case "rolebindings":
+                ThreadProperty.set(envVar, commonspec.kubernetesClient.getRolesBindingsFilteredByLabel(selector, namespace));
+                break;
             default:
         }
     }
@@ -441,10 +488,12 @@ public class K8SSpec extends BaseGSpec {
     @Given("^I forward containerPort '(\\d+)' in localhostPort '(\\d+)' for (pod|service) '(.+?)'( in namespace '(.+?)')?$")
     public void setLocalPortForward(Integer containerPort, Integer localhostPort, String type, String name, String namespace) {
         switch (type) {
-            case "pod":     commonspec.kubernetesClient.setLocalPortForwardPod(namespace, name, containerPort, localhostPort);
-                            break;
-            case "service": commonspec.kubernetesClient.setLocalPortForwardService(namespace, name, containerPort, localhostPort);
-                            break;
+            case "pod":
+                commonspec.kubernetesClient.setLocalPortForwardPod(namespace, name, containerPort, localhostPort);
+                break;
+            case "service":
+                commonspec.kubernetesClient.setLocalPortForwardService(namespace, name, containerPort, localhostPort);
+                break;
             default:
         }
     }

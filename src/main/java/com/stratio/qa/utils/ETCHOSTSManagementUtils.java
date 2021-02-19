@@ -21,6 +21,7 @@ import com.stratio.qa.specs.CommonG;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.lang.management.ManagementFactory;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -34,6 +35,8 @@ public class ETCHOSTSManagementUtils {
     private final String file = "/etc/hosts";
 
     private final String backupFile = "/etc/hosts.bdt";
+
+    private final String backupK8sFile = "/etc/hosts.bdt.k8s";
 
     private final String lockFile;
 
@@ -149,6 +152,27 @@ public class ETCHOSTSManagementUtils {
 
     }
 
+    public void addK8sHost(String ip, String hostname) throws Exception {
+        String checkLockCommand = "if [ -f " + lockFile + " ]; then echo 0; else echo 1; fi";
+        boolean lockAcquired = false;
+
+        comm.runLocalCommand(checkLockCommand);
+        if (comm.getCommandResult().matches("0")) {
+            lockAcquired = true;
+        }
+
+        if (lockAcquired) {
+            comm.runLocalCommand("sudo cp " + backupFile + " " + backupK8sFile);
+            comm.runLocalCommand("echo \"" + ip + "   " + hostname + "\" | sudo tee -a " + file);
+            comm.runLocalCommand("echo \"" + ip + "   " + hostname + "\" | sudo tee -a " + backupFile);
+        } else {
+            comm.runLocalCommand("sudo cp " + file + " " + backupK8sFile);
+            comm.runLocalCommand("echo \"" + ip + "   " + hostname + "\" | sudo tee -a " + file);
+        }
+
+        logger.debug("Kubernetes hosts added!");
+    }
+
     public void releaseLock(String remote, String sshConnectionId) throws Exception {
         String removeLockCommand = "sudo rm " + lockFile;
         String checkLockCommand = "if [ -f " + lockFile + " ]; then " + removeLockCommand + " && echo 0; else echo 1; fi";
@@ -212,6 +236,14 @@ public class ETCHOSTSManagementUtils {
             } else {
                 logger.debug("Nothing to be cleaned for this execution locally");
             }
+        }
+    }
+
+    public void removeK8sHost() throws Exception {
+        if (new File(backupK8sFile).exists()) {
+            comm.runLocalCommand("sudo cp " + backupK8sFile + " " + file);
+            comm.runLocalCommand("sudo rm " + backupK8sFile);
+            logger.debug("Kubernetes hosts deleted!");
         }
     }
 }

@@ -1161,16 +1161,22 @@ public class CCTSpec extends BaseGSpec {
      */
     @Given("^I get schema( with level '(\\d+)')? from service '(.+?)' with model '(.+?)' and version '(.+?)'( and save it in environment variable '(.*?)')?( and save it in file '(.*?)')?$")
     public void getServiceSchema(Integer level, String service, String model, String version, String envVar, String fileName) throws Exception {
+        if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
+            getServiceSchemaKeos(service, model, version, envVar, fileName);
+        } else {
+            getServiceSchemaDcos(level, service, model, version, envVar, fileName);
+        }
+    }
 
+    private void getServiceSchemaDcos(Integer level, String service, String model, String version, String envVar, String fileName) throws Exception {
         // Set REST connection
         commonspec.setCCTConnection(null, null);
 
         if (level == null) {
             level = 1;
         }
-
         String endPoint = "/service/" + ThreadProperty.get("deploy_api_id") + "/deploy/" + service + "/" + model + "/" + version + "/schema?enriched=true&level=" + level;
-        Future<Response> response = commonspec.generateRequest("GET", false, null, null, endPoint, "", null, "");
+        Future<Response> response = commonspec.generateRequest("GET", false, null, null, endPoint, "", null);
         commonspec.setResponse("GET", response.get());
 
         if (commonspec.getResponse().getStatusCode() != 200) {
@@ -1184,7 +1190,27 @@ public class CCTSpec extends BaseGSpec {
             DcosSpec dcosSpec = new DcosSpec(commonspec);
             dcosSpec.convertJSONSchemaToJSON(json, envVar, fileName);
         }
+    }
 
+    private void getServiceSchemaKeos(String service, String model, String version, String envVar, String fileName) throws Exception {
+        // Set REST connection
+        commonspec.setCCTConnection(null, null);
+
+        String endPoint = "/service/cct-universe-service/v1/descriptors/" + service + "/" + model + "/" + version;
+        Future<Response> response = commonspec.generateRequest("GET", false, null, null, endPoint, "", null);
+        commonspec.setResponse("GET", response.get());
+
+        if (commonspec.getResponse().getStatusCode() != 200) {
+            logger.error("Request failed to endpoint: " + endPoint + " with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
+            throw new Exception("Request to endpoint: " + endPoint + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
+        }
+
+        String json = commonspec.getResponse().getResponse();
+
+        if (envVar != null || fileName != null) {
+            KeosSpec keosSpec = new KeosSpec(commonspec);
+            keosSpec.convertDescriptorToK8sJsonSchema(json, envVar, fileName);
+        }
     }
 
     /**
@@ -1199,11 +1225,21 @@ public class CCTSpec extends BaseGSpec {
      * @param jsonFile : marathon json to deploy
      * @throws Exception
      */
-    @Given("^I install service '(.+?)'( in folder '(.+?)')? with model '(.+?)' and version '(.+?)' and instance name '(.+?)' in tenant '(.+?)' using json '(.+?)'$")
+    @Given("^I install service '(.+?)'( in folder '(.+?)')?( with model '(.+?)')?( and version '(.+?)')?( and instance name '(.+?)')? in tenant '(.+?)' using json '(.+?)'$")
     public void installServiceFromMarathonJson(String service, String folder, String model, String version, String name, String tenant, String jsonFile) throws Exception {
+        if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
+            installServiceFromCCTKeos(tenant, jsonFile);
+        } else {
+            installServiceFromCCTDcos(service, folder, model, version, name, tenant, jsonFile);
+        }
+    }
+
+    private void installServiceFromCCTDcos(String service, String folder, String model, String version, String name, String tenant, String jsonFile) throws Exception {
         // Set REST connection
         commonspec.setCCTConnection(null, null);
-
+        if (model == null || version == null || name == null) {
+            fail("Model, version and instance name are mandatory");
+        }
         String endPoint = "/service/" + ThreadProperty.get("deploy_api_id") + "/deploy/" + service + "/" + model + "/" + version + "/schema?tenantId=" + tenant;
         String data = this.commonspec.retrieveData(jsonFile, "json");
 
@@ -1249,6 +1285,24 @@ public class CCTSpec extends BaseGSpec {
         }
 
         restSpec.sendRequestTimeout(200, 20, "GET", endPointStatus, null, null, serviceName);
+    }
+
+    private void installServiceFromCCTKeos(String tenant, String jsonFile) throws Exception {
+        // Set REST connection
+        commonspec.setCCTConnection(null, null);
+
+        String endPoint = "/service/cct-orchestrator-service/v1/install?tenant=" + tenant;
+        String data = this.commonspec.retrieveData(jsonFile, "json");
+
+        Future<Response> response = commonspec.generateRequest("POST", true, null, null, endPoint, data, "json");
+        commonspec.setResponse("POST", response.get());
+
+        if (commonspec.getResponse().getStatusCode() != 200) {
+            logger.error("Request to endpoint: " + endPoint + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
+            throw new Exception("Request to endpoint: " + endPoint + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
+        }
+
+        //TODO Check application status in KEOS
     }
 
     /**
@@ -1306,6 +1360,33 @@ public class CCTSpec extends BaseGSpec {
         restSpec.sendRequestTimeout(200, 20, "GET", endPointStatus, null, "does not", key + ":" + "\"" + serviceName + "\"");
         // Check all resources have been freed
         this.checkResources(serviceName);
+    }
+
+    /**
+     * Uninstall service from tenant
+     *
+     * @param service : service name
+     * @param tenant  : tenant where service is installed
+     * @throws Exception
+     */
+    @Given("^I uninstall service '(.+?)' from tenant '(.+?)' with schema located at file '(.+?)'$")
+    public void uninstallServiceKeos(String service, String tenant, String jsonFile) throws Exception {
+        JSONObject schemaJson = new JSONObject(this.commonspec.retrieveData(jsonFile, "json"));
+        schemaJson.put("applicationId", service + "." + tenant);
+
+        // Set REST connection
+        commonspec.setCCTConnection(null, null);
+
+        String endPoint = "/service/cct-orchestrator-service/v1/uninstall?tenant=" + tenant;
+        Future<Response> response = commonspec.generateRequest("DELETE", true, null, null, endPoint, schemaJson.toString(), "json");
+        commonspec.setResponse("DELETE", response.get());
+
+        if (commonspec.getResponse().getStatusCode() != 202 && commonspec.getResponse().getStatusCode() != 200) {
+            logger.error("Request to endpoint: " + endPoint + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
+            throw new Exception("Request to endpoint: " + endPoint + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
+        }
+
+        // TODO Check service is deleted successfully
     }
 
     /**
@@ -1716,8 +1797,70 @@ public class CCTSpec extends BaseGSpec {
      */
     @When("^I( force)? create '(certificate|keytab|password|password_nouser)' '(.+?)' using deploy-api (with|without) parameters( path '(.+?)')?( cn '(.+?)')?( name '(.+?)')?( alt '(.+?)')?( organization '(.+?)')?( principal '(.+?)')?( realm '(.+?)')?( user '(.+?)')?( password '(.+?)')?$")
     public void createSecret(String force, String secretType, String secret, String withOrWithout, String path, String cn, String name, String alt, String organizationName, String principal, String realm, String user, String password) throws Exception {
-        String baseUrl = "/service/" + ThreadProperty.get("deploy_api_id") + "/secrets";
+        if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
+            createSecretKeos(force, secretType, secret, withOrWithout, path, cn, name, alt, organizationName, principal, realm, user, password);
+        } else {
+            String baseUrl = "/service/" + ThreadProperty.get("deploy_api_id") + "/secrets";
+            String secretTypeAux;
+            String urlParams;
+
+            // Set REST connection
+            commonspec.setCCTConnection(null, null);
+
+            switch (secretType) {
+                case "certificate":
+                    urlParams = getCertificateUrlParams(secret, path, cn, name, alt, organizationName);
+                    secretTypeAux = "certificates";
+                    break;
+                case "keytab":
+                    urlParams = getKeytabUrlParams(secret, path, name, principal, realm);
+                    secretTypeAux = "kerberos";
+                    break;
+                case "password":
+                    urlParams = getPasswordUrlParams(secret, path, name, user, password);
+                    secretTypeAux = "passwords";
+                    break;
+                default:
+                    urlParams = "";
+                    secretTypeAux = "default";
+            }
+            if (force != null) {
+                String pathAux = path != null ? path.replaceAll("/", "%2F") + "%2F" + secret : "%2Fuserland%2F" + secretTypeAux + "%2F" + secret;
+                restSpec.sendRequestNoDataTable("DELETE", baseUrl + "?path=" + pathAux, null, null, null);
+            }
+            if (!secretType.equals("password_nouser")) {
+                restSpec.sendRequestNoDataTable("POST", baseUrl + "/" + secretType + urlParams, null, null, null);
+            } else {
+                String pathAux = (path != null ? path.replaceAll("/", "%2F") + "%2F" + secret : "%2Fuserland%2Fpasswords%2F" + secret) + "%2F" + (name != null ? name : secret);
+                String filePath = createCustomSecretFile(password != null ? password : secret);
+                restSpec.sendRequestNoDataTable("POST", baseUrl + "/custom?path=" + pathAux, null, filePath, "json");
+            }
+        }
+    }
+
+    /**
+     * Create secret
+     *
+     * @param force
+     * @param secretType
+     * @param secret
+     * @param withOrWithout
+     * @param path
+     * @param cn
+     * @param name
+     * @param alt
+     * @param organizationName
+     * @param principal
+     * @param realm
+     * @param user
+     * @param password
+     * @throws Exception
+     */
+    @When("^I( force)? create '(certificate|keytab|password|password_nouser)' '(.+?)' using CCT (with|without) parameters( path '(.+?)')?( cn '(.+?)')?( name '(.+?)')?( alt '(.+?)')?( organization '(.+?)')?( principal '(.+?)')?( realm '(.+?)')?( user '(.+?)')?( password '(.+?)')?$")
+    public void createSecretKeos(String force, String secretType, String secret, String withOrWithout, String path, String cn, String name, String alt, String organizationName, String principal, String realm, String user, String password) throws Exception {
+        String baseUrl = "/service/cct-orchestrator-service/v1/secrets";
         String secretTypeAux;
+        String secretTypeK8s;
         String urlParams;
 
         // Set REST connection
@@ -1727,30 +1870,33 @@ public class CCTSpec extends BaseGSpec {
             case "certificate":
                 urlParams = getCertificateUrlParams(secret, path, cn, name, alt, organizationName);
                 secretTypeAux = "certificates";
+                secretTypeK8s = "certificates";
                 break;
             case "keytab":
                 urlParams = getKeytabUrlParams(secret, path, name, principal, realm);
                 secretTypeAux = "kerberos";
+                secretTypeK8s = "keytabs";
                 break;
             case "password":
                 urlParams = getPasswordUrlParams(secret, path, name, user, password);
                 secretTypeAux = "passwords";
+                secretTypeK8s = "passwords";
+                break;
+            case "password_nouser":
+                urlParams = getPasswordNoUserUrlParams(secret, path, name, password);
+                secretTypeAux = "passwords";
+                secretTypeK8s = "passwords";
                 break;
             default:
                 urlParams = "";
+                secretTypeK8s = "";
                 secretTypeAux = "default";
         }
         if (force != null) {
             String pathAux = path != null ? path.replaceAll("/", "%2F") + "%2F" + secret : "%2Fuserland%2F" + secretTypeAux + "%2F" + secret;
             restSpec.sendRequestNoDataTable("DELETE", baseUrl + "?path=" + pathAux, null, null, null);
         }
-        if (!secretType.equals("password_nouser")) {
-            restSpec.sendRequestNoDataTable("POST", baseUrl + "/" + secretType + urlParams, null, null, null);
-        } else {
-            String pathAux = (path != null ? path.replaceAll("/", "%2F") + "%2F" + secret : "%2Fuserland%2Fpasswords%2F" + secret) + "%2F" + (name != null ? name : secret);
-            String filePath = createCustomSecretFile(password != null ? password : secret);
-            restSpec.sendRequestNoDataTable("POST", baseUrl + "/custom?path=" + pathAux, null, filePath, "json");
-        }
+        restSpec.sendRequestNoDataTable("POST", baseUrl + "/" + secretTypeK8s + urlParams, null, null, null);
     }
 
     /**
@@ -1787,7 +1933,12 @@ public class CCTSpec extends BaseGSpec {
      */
     @When("^I delete '(certificate|keytab|password)' '(.+?)'( located in path '(.+?)')?$")
     public void removeSecret(String secretType, String secret, String path) throws Exception {
-        String baseUrl = "/service/" + ThreadProperty.get("deploy_api_id") + "/secrets";
+        String baseUrl;
+        if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
+            baseUrl = "/service/cct-orchestrator-service/v1/secrets";
+        } else {
+            baseUrl = "/service/" + ThreadProperty.get("deploy_api_id") + "/secrets";
+        }
         String secretTypeAux;
 
         // Set REST connection
@@ -1848,7 +1999,7 @@ public class CCTSpec extends BaseGSpec {
         String pathAux = path != null ? path.replaceAll("/", "%2F") + secret : "%2Fuserland%2Fkerberos%2F" + secret;
         String principalAux = principal != null ? principal : secret;
         String nameAux = name != null ? name : secret;
-        String realmAux = realm != null ? realm : ThreadProperty.get("EOS_REALM");
+        String realmAux = realm != null ? realm : ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true") ? ThreadProperty.get("KEOS_REALM") : ThreadProperty.get("EOS_REALM");
         if (realmAux == null) {
             throw new Exception("Realm is mandatory to generate keytab");
         }
@@ -1869,6 +2020,20 @@ public class CCTSpec extends BaseGSpec {
         String userAux = user != null ? user : secret;
         String passwordAux = password != null ? password : secret;
         return "?path=" + pathAux + "&name=" + nameAux + "&password=" + URLEncoder.encode(passwordAux, "UTF-8") + "&user=" + URLEncoder.encode(userAux, "UTF-8");
+    }
+
+    /**
+     * @param secret
+     * @param path
+     * @param name
+     * @param password
+     * @return
+     */
+    private String getPasswordNoUserUrlParams(String secret, String path, String name, String password) throws UnsupportedEncodingException {
+        String pathAux = path != null ? path.replaceAll("/", "%2F") : "%2Fuserland%2Fpasswords%2F" + secret;
+        String nameAux = name != null ? name : secret;
+        String passwordAux = password != null ? password : secret;
+        return "?path=" + pathAux + "&name=" + nameAux + "&password=" + URLEncoder.encode(passwordAux, "UTF-8");
     }
 
     /**

@@ -150,7 +150,7 @@ public class DcosSpec extends BaseGSpec {
             if (gov != null) {
                 tokenList = new String[]{"user", "dcos-acs-auth-cookie", "stratio-governance-auth"};
             }
-            List<com.ning.http.client.cookie.Cookie> cookiesAtributes = addSsoToken(ssoCookies, tokenList);
+            List<com.ning.http.client.cookie.Cookie> cookiesAtributes = this.commonspec.addSsoToken(ssoCookies, tokenList);
 
             this.commonspec.getLogger().debug("Cookies to set:");
             for (String cookie:tokenList) {
@@ -186,30 +186,13 @@ public class DcosSpec extends BaseGSpec {
         ssoUtils.setVerifyHost(hostVerifier == null);
         HashMap<String, String> ssoCookies = ssoUtils.ssoTokenGenerator();
         String[] tokenList = new String[]{discoveryCookie};
-        List<com.ning.http.client.cookie.Cookie> cookiesAtributes = addSsoToken(ssoCookies, tokenList);
+        List<com.ning.http.client.cookie.Cookie> cookiesAtributes = this.commonspec.addSsoToken(ssoCookies, tokenList);
         this.commonspec.getLogger().debug("Discovery Cookie to set:");
         for (String cookie : tokenList) {
             this.commonspec.getLogger().debug("\t" + cookie + ":" + ssoCookies.get(cookie));
         }
         ThreadProperty.set(discoveryCookie, ssoCookies.get(discoveryCookie));
         commonspec.setCookies(cookiesAtributes);
-    }
-
-    /**
-     * Obtain cookies from previous request
-     * @param ssoCookies
-     * @param tokenList
-     * @return
-     */
-    public List<com.ning.http.client.cookie.Cookie> addSsoToken(HashMap<String, String> ssoCookies, String[] tokenList) {
-        List<com.ning.http.client.cookie.Cookie> cookiesAttributes = new ArrayList<>();
-
-        for (String tokenKey : tokenList) {
-            cookiesAttributes.add(new com.ning.http.client.cookie.Cookie(tokenKey, ssoCookies.get(tokenKey),
-                    false, null,
-                    null, 999999, false, false));
-        }
-        return cookiesAttributes;
     }
 
     /**
@@ -1001,7 +984,7 @@ public class DcosSpec extends BaseGSpec {
         obtainJSONInfoAndExpose(etcdInfo, "$.globals.ldap.ldapBase", "LDAP_BASE", null);
         obtainJSONInfoAndExpose(etcdInfo, "$.globals.ldap.adminrouterAuthorizedGroup", "LDAP_ADMIN_GROUP", null);
         obtainJSONInfoAndExpose(etcdInfo, "$.globals.vault.vaultHost", "EOS_VAULT_HOST_INTERNAL", null);
-        obtainJSONInfoAndExpose(etcdInfo, "$.globals.vault.vaultPort", "EOS_VAULT_PORT", null);
+        obtainJSONInfoAndExpose(etcdInfo, "$.globals.vault.vaultPort", "VAULT_PORT", null);
 
         String[] schemaVersion = ThreadProperty.get("EOS_SCHEMA_VERSION").split("\\.");
         if (Integer.parseInt(schemaVersion[0]) > 0 && Integer.parseInt(schemaVersion[1]) > 3) {
@@ -1009,11 +992,13 @@ public class DcosSpec extends BaseGSpec {
             obtainJSONInfoAndExpose(etcdInfo, "$.cluster_info.descriptor.dnsSearch", "EOS_DNS_SEARCH", null);
             obtainJSONInfoAndExpose(etcdInfo, "$.cluster_info.descriptor.nodes[?(@.role == \"master\")].networking[0].ip", "DCOS_IP", "0");
             obtainJSONInfoAndExpose(etcdInfo, "$.cluster_info.descriptor.nodes[?(@.role == \"agent\" && @.public == true)].networking[0].ip", "PUBLIC_NODE", "0");
-            obtainJSONInfoAndExpose(etcdInfo, "$.cluster_info.descriptor.nodes[?(@.role == \"gosec\")].networking[0].ip", "EOS_VAULT_HOST", "0");
+            obtainJSONInfoAndExpose(etcdInfo, "$.cluster_info.descriptor.nodes[?(@.role == \"gosec\")].networking[0].ip", "VAULT_HOST", "0");
             obtainJSONInfoAndExpose(etcdInfo, "$.globals.overlayNetwork.addressPool", "ADDRESS_POOL", null);
         }
 
-        ThreadProperty.set("EOS_VAULT_PORT", "8200");
+        ThreadProperty.set("EOS_VAULT_HOST", ThreadProperty.get("VAULT_HOST")); // Retrocompatibily, it will be removed in next version
+        ThreadProperty.set("EOS_VAULT_PORT", ThreadProperty.get("VAULT_PORT")); // Retrocompatibily, it will be removed in next version
+
         obtainJSONInfo(response, "ROOT_TOKEN", "VAULT_TOKEN");
 
     }
@@ -1176,7 +1161,7 @@ public class DcosSpec extends BaseGSpec {
         String varIp = "DCOS_IP";
         String varAdminUser = "DCOS_USER";
         String varTenant = "DCOS_TENANT";
-        String varVaultHost = "EOS_VAULT_HOST";
+        String varVaultHost = "VAULT_HOST";
         String varVaultPort = "EOS_VAULT_PORT";
         String varVaultToken = "VAULT_TOKEN";
         String varPublicNode = "PUBLIC_NODE";
@@ -1296,7 +1281,9 @@ public class DcosSpec extends BaseGSpec {
             obtainJSONInfo(descriptor, "ADMIN_USER", varAdminUser);
             obtainJSONInfo(descriptor, "TENANT", varTenant);
             obtainJSONInfo(descriptor, "VAULT_HOST", varVaultHost);
+            ThreadProperty.set("EOS_VAULT_HOST", ThreadProperty.get(varVaultHost)); // Retrocompatibily, it will be removed in next version
             ThreadProperty.set(varVaultPort, "8200");
+            ThreadProperty.set("EOS_VAULT_PORT", ThreadProperty.get(varVaultPort)); // Retrocompatibily, it will be removed in next version
             obtainJSONInfo(descriptor, "REALM", varRealm);
             obtainJSONInfo(descriptor, "ACCESS_POINT", varAccessPoint);
             obtainJSONInfo(descriptor, "LDAP_URL", varLDAPurl);

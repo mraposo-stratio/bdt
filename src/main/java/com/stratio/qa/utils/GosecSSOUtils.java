@@ -73,13 +73,20 @@ public class GosecSSOUtils {
         this.governance = gov;
     }
 
+    /**
+     * Compatibility
+     */
+    @Deprecated
+    public HashMap<String, String> ssoTokenGenerator() throws Exception {
+        return ssoTokenGenerator(true);
+    }
 
     /**
-     * This method provide dcos and sso token to be used to generate client cookie
+     * This method provide tokens to be used to generate client cookie
      * @return cookieToken list of token generated
      * @throws Exception exception
      */
-    public HashMap<String, String> ssoTokenGenerator() throws Exception {
+    public HashMap<String, String> ssoTokenGenerator(boolean addLogin) throws Exception {
         String protocol = "https://";
         HashMap<String, String> cookieToken = new HashMap<>();
 
@@ -88,6 +95,9 @@ public class GosecSSOUtils {
         sslContext.init(null, ALL_TRUSTING_TRUST_MANAGER, new SecureRandom());
         HttpClientContext context = HttpClientContext.create();
         HttpGet httpGet = new HttpGet(protocol + ssoHost + "/login");
+        if (!addLogin) {
+            httpGet = new HttpGet(protocol + ssoHost);
+        }
         HttpClientBuilder clientBuilder = HttpClientBuilder.create()
                 .setSslcontext(sslContext)
                 .setRedirectStrategy(new LaxRedirectStrategy())

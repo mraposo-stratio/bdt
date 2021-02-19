@@ -51,11 +51,11 @@ hose {
            'sleep': 30,       
            'healthcheck': 9300]],
         ['LDAP': [
-            'image': 'stratio/ldap-docker:0.1.0',
+            'image': 'stratio/ldap-docker:0.2.0',
             'env': [
                   'LDAP_SCHEMA=rfc2307',
                   'LDAP_HOSTNAME=%%OWNHOSTNAME',
-                  'HOSTNAME=%%OWNHOSTNAME',
+                  'HOSTNAME=%%OWNHOSTNAME.cd',
                   'LDAP_ORGANISATION=Stratio',
                   'LDAP_DOMAIN=stratio.com',
                   'LDAP_ADMIN_PASSWORD=stratio'],
@@ -97,7 +97,7 @@ hose {
         | -DLDAP_SSL=false
         | -DVAULT_URL=%%VAULT
         | -DVAULT_PROTOCOL=http://
-        | -DEOS_VAULT_HOST=%%VAULT
+        | -DVAULT_HOST=%%VAULT
         | -DVAULT_TOKEN=stratio
         | -DLDAP_URL=%%LDAP
         | -DINCLUDE=1

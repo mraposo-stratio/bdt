@@ -126,6 +126,7 @@ public abstract class BaseGTest {
 
         // Restore local /etc/hosts and remove pending locks, if needed
         ETCHOSTSManagementUtil.INSTANCE.getETCHOSTSManagementUtils().forceReleaseLock(null, null);
+        ETCHOSTSManagementUtil.INSTANCE.getETCHOSTSManagementUtils().removeK8sHost();
 
         // Close JDBC connection
         JDBCConnection.closeConnection();
