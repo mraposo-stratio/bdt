@@ -541,7 +541,7 @@ public class CCTSpec extends BaseGSpec {
 
         String endPoint = "/service/deploy-api/deployments/service?instanceName=" + service;
         if (ThreadProperty.get("cct-marathon-services_id") != null) {
-            endPoint = "/service/cct-marathon-services/v1/services/" + service;
+            endPoint = "/service/cct-marathon-services/v1/services/" + service + "?tsize=100";
         }
         boolean statusService = false;
         for (int i = 0; (i <= timeout) && (!statusService); i += wait) {
@@ -647,7 +647,7 @@ public class CCTSpec extends BaseGSpec {
         String endPoint = "/service/deploy-api/deployments/service?instanceName=" + service;
         boolean useMarathonServices = false;
         if (ThreadProperty.get("cct-marathon-services_id") != null) {
-            endPoint = "/service/cct-marathon-services/v1/services/" + service;
+            endPoint = "/service/cct-marathon-services/v1/services/" + service + "?tsize=100";
             useMarathonServices = true;
         }
         boolean found = false;

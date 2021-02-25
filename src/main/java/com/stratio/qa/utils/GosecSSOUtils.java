@@ -89,7 +89,6 @@ public class GosecSSOUtils {
     public HashMap<String, String> ssoTokenGenerator(boolean addLogin) throws Exception {
         String protocol = "https://";
         HashMap<String, String> cookieToken = new HashMap<>();
-
         SSLContext sslContext = SSLContext.getInstance("SSL");
         // set up a TrustManager that trusts everything
         sslContext.init(null, ALL_TRUSTING_TRUST_MANAGER, new SecureRandom());
