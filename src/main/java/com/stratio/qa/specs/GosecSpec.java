@@ -1193,23 +1193,21 @@ public class GosecSpec extends BaseGSpec {
                         // Get groups/users from tenant
                         JsonArray jsonGroups = (JsonArray) jsonTenantInfo.get(uidOrGidTenant);
                         // Create new string for new data without resource
-                        String[] stringGroups = new String[jsonGroups.size() - 1];
+                        ArrayList<String> stringGroups = new ArrayList<String>();
                         // Create json for put
                         JSONObject putObject = new JSONObject(commonspec.getResponse().getResponse());
                         // Remove ids in json
                         putObject.remove(uidOrGidTenant);
                         // create new array with values without resourceId
                         for (int i = 0; i < jsonGroups.size(); i++) {
-                            int j = 0;
                             String jsonIds = jsonGroups.get(i).toString().substring(1, jsonGroups.get(i).toString().length() - 1);
                             if (jsonIds.equals(resourceId)) {
                                 commonspec.getLogger().warn("{} {} removed from tenant {}", resource, resourceId, tenantId);
                             } else {
-                                stringGroups[j] = jsonIds;
-                                j = j + 1;
+                                stringGroups.add(jsonIds);
                             }
                         }
-                        putObject.put(uidOrGidTenant, stringGroups);
+                        putObject.put(uidOrGidTenant, new JSONArray(stringGroups));
                         commonspec.getLogger().debug("Json for PATCH request---> {}", putObject.toString());
                         Future<Response> response = commonspec.generateRequest("PATCH", false, null, null, endPointTenant, JsonValue.readHjson(putObject.toString()).toString(), "json", "");
                         commonspec.setResponse("PATCH", response.get());

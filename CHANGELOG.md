@@ -7,6 +7,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 * [GS-3161] Add step to create custom JTW
 * [GS-3051] Fix check certificate creating federated users
 * Kubernetes support
+* [EOS-4775] Fix step to remove user/group from tenant
 
 ## 0.20.0 (December 17, 2020)
 
