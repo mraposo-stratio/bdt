@@ -343,6 +343,27 @@ public class K8SSpec extends BaseGSpec {
         }
     }
 
+    @When("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, custom resource '(.+?)' with name '(.+?)' in namespace '(.+?)' has '(.+?)' global status( and description '(.+?)')?$")
+    public void assertCustomResourceStatus(Integer timeout, Integer wait, String name, String nameItem, String namespace, String status, String description) throws InterruptedException, IOException {
+        boolean found = false;
+        int i = 0;
+        while (!found && i <= timeout) {
+            try {
+                Assert.assertEquals((commonspec.kubernetesClient.getGlobalStatusCustomResource(name, nameItem, namespace)), status, "# Global Status");
+                if (description != null) {
+                    Assert.assertEquals((commonspec.kubernetesClient.getGlobalStatusDescriptionCustomResource(name, nameItem, namespace)), description, "# Global Status Description");
+                }
+                found = true;
+            } catch (AssertionError | Exception e) {
+                getCommonSpec().getLogger().info("Expected global status " + status + " don't found after " + i + " seconds");
+                if (i >= timeout) {
+                    throw e;
+                }
+                Thread.sleep(wait * 1000);
+            }
+            i += wait;
+        }
+    }
 
     @When("^I create deployment with name '(.+?)', in namespace '(.+?)', with image '(.+?)'( and image pull policy '(.+?)')?$")
     public void createDeployment(String name, String namespace, String image, String imagePullPolicy) {
@@ -433,6 +454,11 @@ public class K8SSpec extends BaseGSpec {
                 break;
             default:
         }
+    }
+
+    @When("^I delete persistentVolumeClaims with label filter '(.+?)' in namespace '(.+?)'$")
+    public void deletePersistentVolumeClaims(String label, String namespace) throws Exception {
+        commonspec.kubernetesClient.deletePersistentVolumeClaimsWithLabel(label, namespace);
     }
 
     @When("^I delete custom resource '(.+?)' with name '(.+?)' in namespace '(.+?)'$")
