@@ -429,10 +429,62 @@ public class KubernetesClient {
             Map<String, Object> metadata = (Map<String, Object>) customResource.get("metadata");
             Map<String, Object> status = (Map<String, Object>) customResource.get("status");
             if (metadata.get("name").equals(nameItem)) {
-                return Integer.valueOf(result.append(status.get("ReadyInstances")).toString().split("/")[0]);
+                return Integer.valueOf(result.append(status.get("readyInstances")).toString().split("/")[0]);
             }
         }
         return replicas;
+    }
+
+    /**
+     * Using a custom resource
+     *
+     * @param name customresourcedefinition name (ex:pgclusters.postgres.stratio.com)
+     * @param nameItem pgcluster name
+     * @param namespace Namespace
+     * @return global status
+     */
+    public String getGlobalStatusCustomResource(String name, String nameItem, String namespace) throws IOException {
+        CustomResourceDefinition crd = k8sClient.customResourceDefinitions().withName(name).get();
+        CustomResourceDefinitionContext crdContext = CustomResourceDefinitionContext.fromCrd(crd);
+
+        Map<String, Object> list = k8sClient.customResource(crdContext).list(namespace);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) list.get("items");
+        StringBuilder result = new StringBuilder();
+        for (Map<String, Object> customResource : items) {
+            Map<String, Object> metadata = (Map<String, Object>) customResource.get("metadata");
+            Map<String, Object> status = (Map<String, Object>) customResource.get("status");
+            Map<String, Object> globalStatus = (Map<String, Object>) status.get("globalStatus");
+            if (metadata.get("name").equals(nameItem)) {
+                return result.append(globalStatus.get("status")).toString();
+            }
+        }
+        return result.toString();
+    }
+
+    /**
+     * Using a custom resource
+     *
+     * @param name customresourcedefinition name (ex:pgclusters.postgres.stratio.com)
+     * @param nameItem pgcluster name
+     * @param namespace Namespace
+     * @return global status description
+     */
+    public String getGlobalStatusDescriptionCustomResource(String name, String nameItem, String namespace) throws IOException {
+        CustomResourceDefinition crd = k8sClient.customResourceDefinitions().withName(name).get();
+        CustomResourceDefinitionContext crdContext = CustomResourceDefinitionContext.fromCrd(crd);
+
+        Map<String, Object> list = k8sClient.customResource(crdContext).list(namespace);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) list.get("items");
+        StringBuilder result = new StringBuilder();
+        for (Map<String, Object> customResource : items) {
+            Map<String, Object> metadata = (Map<String, Object>) customResource.get("metadata");
+            Map<String, Object> status = (Map<String, Object>) customResource.get("status");
+            Map<String, Object> globalStatus = (Map<String, Object>) status.get("globalStatus");
+            if (metadata.get("name").equals(nameItem)) {
+                return result.append(globalStatus.get("description")).toString();
+            }
+        }
+        return result.toString();
     }
 
     /**
@@ -586,6 +638,16 @@ public class KubernetesClient {
      */
     public void deleteService(String service, String namespace) {
         k8sClient.services().inNamespace(namespace).withName(service).delete();
+    }
+
+    /**
+     * kubectl delete service myservice
+     *
+     * @param label label filter witch has persistent volume claims to delete
+     * @param namespace Namespace
+     */
+    public void deletePersistentVolumeClaimsWithLabel(String label, String namespace) {
+        k8sClient.persistentVolumeClaims().inNamespace(namespace).withLabel(label).delete();
     }
 
     /**
